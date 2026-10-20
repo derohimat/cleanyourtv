@@ -22,4 +22,6 @@
     <locale android:name="fi" />
     <locale android:name="vi" />
     <locale android:name="bn" />
+    <!-- Android uses the legacy in qualifier for Indonesian resources. -->
+    <locale android:name="in" />
 </locale-config>

@@ -81,6 +81,25 @@
          Gregorian date. -->
     <bool name="shamsi_date">false</bool>
 
+    <!-- Hijri date under the date, e.g. "8 Jumadil Awal 1448 H" (Umm al-Qura calendar). hijri_offset moves it by
+         -2 to 2 days, for countries that start the month by sighting the moon (Indonesia: often -1). -->
+    <bool name="hijri_date">true</bool>
+    <integer name="hijri_offset">-1</integer>
+
+    <!-- Prayer times under the clock: Imsak, Subuh, Terbit, Dzuhur, Ashar, Maghrib and Isya, with a countdown to the
+         next prayer. Computed on the TV from the location below, no network. prayer_method: kemenag (Indonesia's
+         Ministry of Religious Affairs: Subuh at -20 degrees) or muhammadiyah (Subuh at -18). prayer_elevation in
+         metres moves sunrise and sunset; Kemenag's Kota Bandung table matches at 1150. Leave the latitude empty to
+         omit. With PRAYER_SERVICE=1 build-and-install.sh, a card (and with prayer_sound a short chime) also shows
+         over any app when a prayer time begins. Set them from a theme too ("prayer_latitude": -6.9175). -->
+    <bool name="prayer_times">true</bool>
+    <string name="prayer_latitude" translatable="false">-6.9175</string>
+    <string name="prayer_longitude" translatable="false">107.6191</string>
+    <string name="prayer_elevation" translatable="false">1150</string>
+    <string name="prayer_city" translatable="false">Bandung</string>
+    <string name="prayer_method" translatable="false">kemenag</string>
+    <bool name="prayer_sound">true</bool>
+
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the

@@ -100,6 +100,22 @@
                         android:fontFamily="@font/outfit_regular"
                         android:letterSpacing="0.14"
                         android:textAllCaps="true" />
+
+                    <!-- Hijri date ("8 Jumadil Awal 1448 H"), shown when hijri_date is on. -->
+                    <TextView
+                        android:id="@+id/hijriDate"
+                        android:gravity="right"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:textColor="#8CFFFFFF"
+                        android:textSize="11sp"
+                        android:fontFamily="@font/outfit_regular"
+                        android:letterSpacing="0.14"
+                        android:textAllCaps="true"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <View
@@ -180,6 +196,27 @@
                 android:textColor="#D9FFFFFF"
                 android:textSize="14sp"
                 android:fontFamily="@font/outfit_medium"
+                android:letterSpacing="0.04"
+                android:focusable="false"
+                android:visibility="gone" />
+
+            <!-- Prayer times (config.xml prayer_times): the countdown to the next prayer, then the day's times.
+                 Below the stats line, or below the clock while that is gone; across the whole width, since the
+                 times need more room than the clock column has. Never focusable. -->
+            <TextView
+                android:id="@+id/prayerTimes"
+                android:layout_width="match_parent"
+                android:layout_below="@id/stats"
+                android:gravity="right"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginStart="4dp"
+                android:maxLines="2"
+                android:lineSpacingExtra="4dp"
+                android:ellipsize="end"
+                android:textColor="#8CFFFFFF"
+                android:textSize="13sp"
+                android:fontFamily="@font/outfit_regular"
                 android:letterSpacing="0.04"
                 android:focusable="false"
                 android:visibility="gone" />

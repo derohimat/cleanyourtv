@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Indonesian. Android uses the legacy "in" qualifier for Indonesian resources. The strings seen every day are
+     here; the module card prompts, the longer help texts and the stats line fall back to English, which keeps the APK under
+     its 400 KB limit (CI). -->
+<resources>
+    <string name="app_name">Beranda</string>
+    <string name="inputs">Input</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="settings">Setelan</string>
+    <string name="choose_input">Input</string>
+    <string name="connected">Terhubung</string>
+    <string name="standby">Siaga</string>
+    <string name="not_connected">Tidak ada perangkat</string>
+    <string name="live_tv">Siaran TV</string>
+    <string name="no_inputs">Tidak ada input</string>
+    <string name="good_morning">Selamat pagi</string>
+    <string name="good_afternoon">Selamat siang</string>
+    <!-- The 17:00 to 22:00 greeting: "malam" reads right for most of it, "sore" would be wrong by 19:00. -->
+    <string name="good_evening">Selamat malam</string>
+    <string name="good_night">Selamat malam</string>
+    <string name="ethernet">Ethernet</string>
+    <string name="offline">Tidak terhubung</string>
+    <string name="not_available">Tidak tersedia di TV ini</string>
+    <string name="cant_open">Tidak dapat membuka %1$s</string>
+    <string name="dream_name">Jam</string>
+    <string name="home_settings">Pilih beranda default</string>
+    <string name="launcher_settings">Setelan peluncur</string>
+    <string name="columns_label">Aplikasi per baris</string>
+    <string name="animations_state">Animasi: %1$s</string>
+    <string name="advanced_effects">Efek lanjutan</string>
+    <string name="advanced_effects_state">Efek lanjutan: %1$s</string>
+    <string name="tv_settings">Setelan sistem TV</string>
+    <string name="quick_picture">Tampilan</string>
+    <string name="quick_network">Jaringan</string>
+    <string name="quick_apps">Aplikasi</string>
+    <string name="quick_apps_hint">Aktifkan lagi</string>
+    <string name="on">Aktif</string>
+    <string name="off">Nonaktif</string>
+    <string name="enable">Aktifkan</string>
+    <string name="dock_edit">Ubah dock</string>
+    <string name="dock_edit_hint">Pilih tempat di dock yang ingin diubah lalu tekan OK. Kembali untuk selesai.</string>
+    <string name="reorder">Atur ulang aplikasi</string>
+    <string name="reorder_not_saved">Urutan baru tidak dapat disimpan</string>
+    <string name="app_library">Pustaka aplikasi</string>
+    <string name="library_empty">Tidak ada aplikasi yang bisa dibuka</string>
+    <string name="library_on_home">Di Beranda</string>
+    <string name="library_add_home">Tambahkan ke Beranda</string>
+    <string name="library_remove_shortcut">Hapus dari Beranda</string>
+    <string name="library_open">Buka</string>
+    <string name="library_app_info">Info aplikasi</string>
+    <string name="library_save_failed">Pintasan tidak dapat disimpan</string>
+    <string name="library_recent">Baru · Tambahkan ke Beranda</string>
+    <plurals name="library_app_count">
+        <item quantity="other">%1$d aplikasi</item>
+    </plurals>
+    <string name="greeting_with_name">%1$s, %2$s</string>
+    <string name="prayer_countdown">%1$s dalam %2$s</string>
+    <string name="prayer_hours_minutes">%1$d j %2$d mnt</string>
+    <string name="prayer_hours">%1$d j</string>
+    <string name="prayer_minutes">%1$d mnt</string>
+    <string name="prayer_reminder_title">Waktu sholat %1$s</string>
+    <string name="prayer_service_name">Pengingat sholat</string>
+    <string name="prayer_service_description">Menampilkan kartu dan bunyi singkat di atas aplikasi apa pun saat waktu sholat tiba.</string>
+    <string name="hijri_date_format">%1$d %2$s %3$d H</string>
+</resources>

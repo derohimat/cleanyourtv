@@ -152,10 +152,13 @@ esac
 #                         It also handles input_key_keycodes and app_keys (config.xml or a theme; a YouTube button)
 #   HOME_KEY_SERVICE=1    remotes whose Home button sends KEYCODE_ALL_APPS instead of HOME, e.g. Xiaomi
 #                         sticks: the key is routed to the launcher (HomeKeyService)
+#   PRAYER_SERVICE=1      a card and a short chime over any app when a prayer time begins; config.xml
+#                         prayer_times and its location (PrayerReminderService)
 enable_service() {   # appends to enabled_accessibility_services without dropping other services
   svc=com.gathin.tvhome/.$1
   "$PY" -I ../tools/tv.py "s=\$(settings get secure enabled_accessibility_services); case \"\$s\" in *$1*) ;; null|'') settings put secure enabled_accessibility_services $svc ;; *) settings put secure enabled_accessibility_services \"\$s:$svc\" ;; esac; settings put secure accessibility_enabled 1; echo $1 enabled"
 }
 if [ "${INPUT_KEY_SERVICE:-0}" = 1 ]; then enable_service InputKeyService; fi
 if [ "${HOME_KEY_SERVICE:-0}" = 1 ]; then enable_service HomeKeyService; fi
+if [ "${PRAYER_SERVICE:-0}" = 1 ]; then enable_service PrayerReminderService; fi
 echo "Installed. Press Home on the remote to see it."

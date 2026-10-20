@@ -49,6 +49,11 @@ final class Config {
     final boolean advancedEffects;
     final int rowsBelowDock;
     final boolean shamsiDate;
+    /** Hijri date under the date (config.xml hijri_date), shifted by hijri_offset days. */
+    final boolean hijriDate;
+    final int hijriOffset;
+    /** Prayer times line and reminder (config.xml prayer_times); null when off or without a valid location. */
+    final Prayer prayer;
     /** Name after the greeting ("Good morning, Mr. Trịnh"); empty for the greeting alone. */
     final String greetingName;
     final boolean moduleCards;
@@ -98,7 +103,11 @@ final class Config {
                    boolean showHomeSettingsShortcut, boolean showStats, boolean appLibrary, int backgroundColor, int skyIntensity,
                    int[] settingsKeycodes, boolean settingsKeyPanel, boolean wallpaperEnabled, File wallpaper, List<File> wallpapers,
                    int wallpaperRotationMinutes, int wallpaperDim, boolean overlayApplied,
-                   Festival festival, int[] inputKeycodes, List<String> appKeys) {
+                   Festival festival, int[] inputKeycodes, List<String> appKeys,
+                   boolean hijriDate, int hijriOffset, Prayer prayer) {
+        this.hijriDate = hijriDate;
+        this.hijriOffset = hijriOffset;
+        this.prayer = prayer;
         this.inputKeycodes = inputKeycodes;
         this.appKeys = Collections.unmodifiableList(appKeys);
         this.dockApps = Collections.unmodifiableList(dockApps);
@@ -173,6 +182,15 @@ final class Config {
         boolean settingsKeyPanel = res.getBoolean(R.bool.settings_key_panel);
         int[] inputKeycodes = res.getIntArray(R.array.input_key_keycodes);
         List<String> appKeys = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.app_keys)));
+        boolean hijri = res.getBoolean(R.bool.hijri_date);
+        int hijriOffset = res.getInteger(R.integer.hijri_offset);
+        boolean prayerTimes = res.getBoolean(R.bool.prayer_times);
+        double prayerLat = decimal(res.getString(R.string.prayer_latitude), Double.NaN);
+        double prayerLon = decimal(res.getString(R.string.prayer_longitude), Double.NaN);
+        double prayerElevation = decimal(res.getString(R.string.prayer_elevation), 0);
+        String prayerCity = res.getString(R.string.prayer_city).trim();
+        String prayerMethod = res.getString(R.string.prayer_method).trim();
+        boolean prayerSound = res.getBoolean(R.bool.prayer_sound);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -209,6 +227,15 @@ final class Config {
             settingsKeyPanel = bool(json, "settings_key_panel", settingsKeyPanel);
             inputKeycodes = intArray(json, "input_key_keycodes", inputKeycodes);
             appKeys = stringList(json, "app_keys", appKeys);
+            hijri = bool(json, "hijri_date", hijri);
+            hijriOffset = integer(json, "hijri_offset", hijriOffset, -2, 2);
+            prayerTimes = bool(json, "prayer_times", prayerTimes);
+            prayerLat = decimal(json, "prayer_latitude", prayerLat);
+            prayerLon = decimal(json, "prayer_longitude", prayerLon);
+            prayerElevation = decimal(json, "prayer_elevation", prayerElevation);
+            prayerCity = string(json, "prayer_city", prayerCity);
+            prayerMethod = string(json, "prayer_method", prayerMethod);
+            prayerSound = bool(json, "prayer_sound", prayerSound);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -239,7 +266,38 @@ final class Config {
                 shamsi, greetingName, moduleCards, reducedMotion, dockTitle, dockRow, reorderButton, vpn, homeSettings, showStats, library, background,
                 Math.max(0, Math.min(100, skyIntensity)), settingsKeycodes, settingsKeyPanel, wallpaperEnabled, wallpaper,
                 wallpapers, rotationMinutes, wallpaperDim, applied,
-                festival, inputKeycodes, appKeys);
+                festival, inputKeycodes, appKeys,
+                hijri, Math.max(-2, Math.min(2, hijriOffset)),
+                prayerTimes ? Prayer.of(prayerLat, prayerLon, prayerElevation, prayerCity, prayerMethod, prayerSound) : null);
+    }
+
+    /** Where and how the prayer times are computed (config.xml prayer_*), and whether the reminder chimes. */
+    static final class Prayer {
+        final double latitude;
+        final double longitude;
+        /** Metres; sunrise comes earlier and sunset later the higher the observer. */
+        final double elevation;
+        /** Shown on the reminder card ("11:38 · Bandung"); may be empty. */
+        final String city;
+        final PrayerTimes.Method method;
+        final boolean sound;
+
+        private Prayer(double latitude, double longitude, double elevation, String city, PrayerTimes.Method method,
+                       boolean sound) {
+            this.latitude = latitude;
+            this.longitude = longitude;
+            this.elevation = elevation;
+            this.city = city;
+            this.method = method;
+            this.sound = sound;
+        }
+
+        /** Null unless the latitude and longitude are on the globe: no location, no prayer times. */
+        static Prayer of(double lat, double lon, double elevation, String city, String method, boolean sound) {
+            if (!(lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180)) return null;
+            double metres = elevation >= 0 && elevation <= 9000 ? elevation : 0;
+            return new Prayer(lat, lon, metres, city, PrayerTimes.Method.parse(method), sound);
+        }
     }
 
     private static void syncThemeChoices(SharedPreferences choices, File dir, File config) {
@@ -310,6 +368,22 @@ final class Config {
         if (!(v instanceof Number)) return fallback;
         int i = ((Number) v).intValue();
         return i < min || i > max ? fallback : i;
+    }
+
+    /** A number from config.json, or a numeric string as config.xml has to store one. */
+    private static double decimal(JSONObject o, String key, double fallback) {
+        Object v = o.opt(key);
+        if (v instanceof Number) return ((Number) v).doubleValue();
+        return v instanceof String ? decimal((String) v, fallback) : fallback;
+    }
+
+    private static double decimal(String text, double fallback) {
+        try {
+            double d = Double.parseDouble(text.trim());
+            return Double.isNaN(d) || Double.isInfinite(d) ? fallback : d;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private static int color(JSONObject o, String key, int fallback) {

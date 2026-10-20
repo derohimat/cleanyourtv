@@ -39,6 +39,14 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `reorder_button` | bool | A reorder button in the top bar (`false` by default); reordering is always in the Settings button's long-press menu |
 | `app_library` | bool | An App library pill after the last Home row: every installed app, add one to Home or take it off (`false` by default). The choices stay on the TV when a theme is pushed or reset; see [docs/app-library.md](../docs/app-library.md) |
 | `shamsi_date` | bool | Show the Solar Hijri date above the Gregorian one |
+| `hijri_date` | bool | Show the Hijri date (Umm al-Qura) under the Gregorian one |
+| `hijri_offset` | -2 to 2 | Days to move the Hijri date, for countries that sight the moon (Indonesia: often `-1`) |
+| `prayer_times` | bool | Prayer times and a countdown under the clock; needs `prayer_latitude` and `prayer_longitude` |
+| `prayer_latitude`, `prayer_longitude` | number | Where the prayer times are computed, in degrees (south and west negative) |
+| `prayer_elevation` | number | Metres; moves Terbit and Maghrib. Kemenag's Kota Bandung table matches at `1150` |
+| `prayer_city` | string | Shown on the reminder card next to the time |
+| `prayer_method` | string | `kemenag` (default; Subuh at -20°) or `muhammadiyah` (Subuh at -18°) |
+| `prayer_sound` | bool | A short chime with the reminder card (`PRAYER_SERVICE=1` at install); on by default |
 | `greeting_name` | string | A name after the greeting, e.g. `"Mr. Trịnh"` for GOOD MORNING, MR. TRỊNH; empty for the greeting alone |
 | `module_cards` | bool | Look for module cards and ask about them (`true`); `false` turns the feature off |
 | `reduced_motion` | bool | Calmer motion for weak GPUs: stiff highlight spring, no tile overshoot, short fades, no entrance replay |
@@ -110,6 +118,28 @@ the plain background; the default is off (the reference launcher looks exactly a
 ```json
 { "sky_intensity": 60 }
 ```
+
+## Prayer times
+
+```json
+{ "prayer_times": true, "prayer_latitude": -6.9175, "prayer_longitude": 107.6191,
+  "prayer_elevation": 1150, "prayer_city": "Bandung", "hijri_date": true, "hijri_offset": -1 }
+```
+
+adds two lines under the clock: the countdown to the next prayer, then Imsak, Subuh, Terbit, Dzuhur,
+Ashar, Maghrib and Isya with that prayer in white. The times are worked out on the TV once a day from
+the sun's position, by the rules of Indonesia's Ministry of Religious Affairs (Kemenag): Subuh at 20°
+below the horizon, Isya at 18°, a 2-minute margin (3 for Dzuhur, 3 earlier for Terbit), Imsak 10 minutes
+before Subuh. Over all of 2026 they match Kemenag's published tables for Kota Bandung and Kota Jakarta to
+the minute on most days and within one on the rest. Nothing
+is fetched, and the line updates with the clock's minute tick only while Home is on screen.
+
+The reminder is a separate, opt-in accessibility service, because only that may draw over another app
+without extra permissions: install with `PRAYER_SERVICE=1 launcher/build-and-install.sh` (Windows:
+`-PrayerService`), again after every reinstall. When a prayer time begins it shows a small glass card top
+right for 30 seconds, over YouTube or anything else, with a short chime that ducks the video for a moment
+(`"prayer_sound": false` for the card alone). The card takes no focus and no keys. While the TV is in
+standby nothing shows. `adb shell am broadcast -a com.gathin.tvhome.PRAYER_TEST` shows it at once to check.
 
 ## Adding a theme
 

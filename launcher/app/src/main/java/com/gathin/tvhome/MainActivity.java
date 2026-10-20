@@ -39,10 +39,14 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.graphics.Typeface;
 import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.TextUtils;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -116,6 +120,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** config.xml show_stats, overridable by a theme. Off: the line is gone and nothing is read. */
     private boolean showStats;
     private boolean shamsi;
+    private TextView hijriDate;
+    /** config.xml hijri_date and hijri_offset. */
+    private boolean hijri;
+    private int hijriOffset;
+    private TextView prayerLine;
+    /** config.xml prayer_times with a valid location; null keeps the line gone and computes nothing. */
+    private Config.Prayer prayer;
+    /** Today's and tomorrow's times, recomputed when the date changes; null where the sun never gets there. */
+    private LocalDate prayerDay;
+    private int[] prayerToday, prayerTomorrow;
     /** greeting_name: said after the greeting, which is shown in capitals. */
     private String greetingName = "";
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
@@ -237,7 +251,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateWifiLabel();
             sky.update();
             wallpaperPlayer.update();
-            handler.postDelayed(this, MINUTE_MS);
+            handler.postDelayed(this, untilNextMinute());
         }
     };
 
@@ -291,6 +305,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             date.setTextSize(11f);
             date.setPadding(0, (int) (4 * density), 0, 0);
         }
+        hijriDate = findViewById(R.id.hijriDate);
+        hijri = cfg.hijriDate;
+        hijriOffset = cfg.hijriOffset;
+        if (hijri) hijriDate.setVisibility(View.VISIBLE);
+        prayerLine = findViewById(R.id.prayerTimes);
+        prayer = cfg.prayer;
         vpnApp = cfg.vpnApp;
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
@@ -550,7 +570,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (showStats) startStats();
         sky.update();
         wallpaperPlayer.start();
-        handler.postDelayed(minuteTick, MINUTE_MS);
+        handler.postDelayed(minuteTick, untilNextMinute());
         if (festive && diya != null) {
             diya.start();
             LocalDate today = LocalDate.now();
@@ -1551,6 +1571,66 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             greeting.setTextColor(greetingColor);
         }
         if (shamsi) shamsiDate.setText(Shamsi.today());
+        if (hijri) updateHijriDate();
+        if (prayer != null) updatePrayerLine();
+    }
+
+    /** Milliseconds to the next whole minute, when the TextClocks turn over. */
+    private static long untilNextMinute() {
+        return MINUTE_MS - System.currentTimeMillis() % MINUTE_MS;
+    }
+
+    private void updateHijriDate() {
+        int[] h = Hijri.of(LocalDate.now(), hijriOffset);
+        if (h == null) {
+            hijriDate.setVisibility(View.GONE);
+            return;
+        }
+        hijriDate.setText(getString(R.string.hijri_date_format, h[2], Hijri.MONTHS[h[1] - 1], h[0]));
+    }
+
+    /**
+     * Two lines: the countdown to the next prayer, then the times of the day it falls in, that prayer in white.
+     * After Isya the day ahead is shown, so the line leads with tomorrow's Imsak and Subuh.
+     */
+    private void updatePrayerLine() {
+        Calendar now = Calendar.getInstance();
+        LocalDate today = LocalDate.now();
+        if (!today.equals(prayerDay)) {
+            int offset = PrayerText.utcOffsetMinutes(now);
+            prayerToday = PrayerTimes.compute(today, prayer.latitude, prayer.longitude, prayer.elevation, offset,
+                    prayer.method);
+            prayerTomorrow = PrayerTimes.compute(today.plusDays(1), prayer.latitude, prayer.longitude,
+                    prayer.elevation, offset, prayer.method);
+            prayerDay = today;
+        }
+        if (prayerToday == null || prayerTomorrow == null) {
+            prayerLine.setVisibility(View.GONE);
+            return;
+        }
+        int minute = PrayerText.minuteOfDay(now);
+        int next = PrayerTimes.next(prayerToday, minute);
+        boolean tomorrow = next < 0;
+        int[] times = tomorrow ? prayerTomorrow : prayerToday;
+        if (tomorrow) next = PrayerTimes.SUBUH;
+        int until = times[next] + (tomorrow ? 1440 : 0) - minute;
+        String[] names = PrayerTimes.NAMES;
+
+        SpannableStringBuilder line = new SpannableStringBuilder(
+                getString(R.string.prayer_countdown, names[next], PrayerText.duration(this, until)));
+        line.setSpan(new ForegroundColorSpan(0xE6FFFFFF), 0, line.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        line.append('\n');
+        for (int i = 0; i < times.length; i++) {
+            if (i > 0) line.append("     ");
+            int start = line.length();
+            line.append(names[i]).append("  ").append(PrayerText.clock(this, times[i]));
+            if (i == next) {
+                line.setSpan(new ForegroundColorSpan(Color.WHITE), start, line.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                line.setSpan(new StyleSpan(Typeface.BOLD), start, line.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+        prayerLine.setText(line);
+        prayerLine.setVisibility(View.VISIBLE);
     }
 
     /** Shows the Wi-Fi network name on the button when we can read it, otherwise the connection type. */
