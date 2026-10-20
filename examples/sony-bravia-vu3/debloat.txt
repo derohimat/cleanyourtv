@@ -1,0 +1,53 @@
+# Sony BRAVIA VU3 4K (device BRAVIA_VU3_4K, Realtek rtd2885m), Indonesia
+# Google TV 14 (API 34), build UKR1.240726.001, the same firmware as the VU31 (examples/sony-bravia-vu31)
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh examples/sony-bravia-vu3/debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh examples/sony-bravia-vu3/debloat.txt com.google.android.apps.tv.launcherx
+# Everything is DISABLED, not uninstalled. Comment out any line you want to keep.
+#
+# Stock launcher: com.google.android.apps.tv.launcherx; pass it to restore.sh as above.
+# Already disabled from the factory on this set: com.sonypicturescore, com.sony.dtv.b2b.vendorprotocol and
+# Sony's Alexa / IoT stack (m2.seeds.iot, m2.seeds.iot.remotestart, m2.seeds.auth, m2.devicecontrolservice).
+# ADB: USB debugging alone opens port 5555; the "Allow USB debugging?" prompt appears on first connect.
+
+# Sony promos, store demo and help tiles
+com.sony.dtv.promos                      # My BRAVIA promos
+com.sony.dtv.sonyselect                  # Sony Select app promos
+com.sony.dtv.sonytab                     # Sony tab / partner content on the stock home
+com.sony.dtv.multiscreendemo             # shop demo
+com.sony.dtv.smarthelp                   # Sony help tile
+com.sony.dtv.helpguidecontents           # help guide content
+
+# Google leftovers a TV never needs
+com.google.android.feedback              # Google feedback reporter
+com.google.android.partnersetup          # RLZ install-attribution provider
+com.google.android.onetimeinitializer    # runs once after first setup
+com.google.android.syncadapters.calendar # calendar sync; also carries Google's GrowthKit promos
+com.android.printspooler                 # printing
+android.autoinstalls.config.google.gtvpai # Play partner auto-installs
+com.android.gallery3d                    # legacy photo viewer
+
+# Ads and on-device ad personalisation
+com.android.adservices.api               # Privacy Sandbox ad services
+com.android.federatedcompute.services    # federated learning for ad/usage models
+com.android.ondevicepersonalization.services # on-device ad personalisation
+
+# Off by choice (owner does not use them). Netflix, YouTube, YouTube Music, YouTube Kids, Vidio,
+# Assistant/voice, Chromecast, AirPlay and the phone remote were kept on purpose.
+com.amazon.amazonvideo.livingroom        # Prime Video
+in.startv.hotstar.dplus.tv               # Disney+ Hotstar
+com.maxstream.tv                         # MAXstream (Telkomsel)
+com.bstar.intl.tv                        # Bstation
+com.apple.atve.androidtv.appletv         # Apple TV (preloaded in /data)
+com.google.android.play.games            # Play Games
+com.google.android.marvin.talkback       # screen reader, off by choice
+
+# Screensaver: set `settings put secure screensaver_components com.android.dreams.basic/.Colors` first, or
+# with the launcher installed its clock, com.gathin.tvhome/.ClockDream (runs in the launcher's process)
+com.google.android.apps.tv.dreamx        # Ambient photo/art screensaver and its photo-sync jobs
+
+# Launcher handover: setupwraith is safe to disable before the launcher (launcherx keeps Home). Here the
+# saved Wi-Fi network "AndroidX" belonged to setupwraith (`dumpsys wifi | grep -o 'cname=[^ ]*'`), so
+# disabling it deletes that network; the TV is on Ethernet, so it was disabled with FORCE_SETUPWRAITH=1.
+com.google.android.tungsten.setupwraith  # setup wizard; its RecoveryActivity claims HOME once launcherx is off
+# com.google.android.apps.tv.launcherx   # launcher/build-and-install.sh disables the stock launcher itself, after Home has moved
