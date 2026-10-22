@@ -125,6 +125,7 @@ class ComposeHomeActivity : ComponentActivity() {
                     data, dock, grid, gridOpen,
                     onLaunch = { intent -> runCatching { startActivity(intent) } },
                     onSystem = { action -> runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
+                    onPanel = { runCatching { startActivity(Intent(this, QuickSettingsActivity::class.java)) } },
                     onTick = { dataState.value = readHome(Config.load(this), advanceQuote = false) }
                 )
             }
@@ -268,6 +269,7 @@ private fun HomeScreen(
     gridOpen: androidx.compose.runtime.MutableState<Boolean>,
     onLaunch: (Intent) -> Unit,
     onSystem: (String) -> Unit,
+    onPanel: () -> Unit,
     onTick: () -> Unit
 ) {
     val dockFocus = remember { FocusRequester() }
@@ -296,7 +298,7 @@ private fun HomeScreen(
         if (d.dim > 0f) Box(Modifier.fillMaxSize().background(Color(0xFF05070D).copy(alpha = d.dim)))
 
         Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 44.dp)) {
-            Header(d, onSystem)
+            Header(d, onSystem, onPanel)
             if (d.cells.isNotEmpty()) {
                 Spacer(Modifier.height(20.dp))
                 PrayerRail(d)
@@ -315,11 +317,11 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun TopButtons(onSystem: (String) -> Unit) {
+private fun TopButtons(onSystem: (String) -> Unit, onPanel: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Pill("SUMBER") { onSystem(Settings.ACTION_SETTINGS) }
         Pill("JARINGAN") { onSystem(Settings.ACTION_WIFI_SETTINGS) }
-        Pill("SETELAN") { onSystem(Settings.ACTION_SETTINGS) }
+        Pill("SETELAN") { onPanel() }
     }
 }
 
@@ -415,10 +417,10 @@ private fun AppGrid(apps: List<AppEntry>, onLaunch: (Intent) -> Unit, onClose: (
 }
 
 @Composable
-private fun Header(d: HomeData, onSystem: (String) -> Unit) {
+private fun Header(d: HomeData, onSystem: (String) -> Unit, onPanel: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
         HeaderClock(d)
-        TopButtons(onSystem)
+        TopButtons(onSystem, onPanel)
     }
 }
 
