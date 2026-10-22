@@ -70,7 +70,7 @@
                     android:singleLine="true"
                     android:ellipsize="end"
                     android:layout_marginStart="4dp"
-                    android:textColor="#8CFFFFFF"
+                    android:textColor="#C7E7C07B"
                     android:textSize="12sp"
                     android:fontFamily="@font/outfit_medium"
                     android:letterSpacing="0.22"
@@ -167,7 +167,7 @@
                             android:layout_marginTop="3dp"
                             android:singleLine="true"
                             android:ellipsize="end"
-                            android:textColor="#8CFFFFFF"
+                            android:textColor="#CCE7C07B"
                             android:textSize="11sp"
                             android:fontFamily="@font/outfit_regular"
                             android:letterSpacing="0.14"
@@ -201,41 +201,34 @@
             <!-- Prayer times (config.xml prayer_times): the countdown to the next prayer, then the day's times.
                  Below the stats line, or below the clock while that is gone; across the whole width, since the
                  times need more room than the clock column has. Never focusable. -->
-            <TextView
+            <LinearLayout
                 android:id="@+id/prayerTimes"
-                android:layout_width="match_parent"
-                android:layout_below="@id/stats"
-                android:gravity="left"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:layout_marginStart="4dp"
-                android:maxLines="2"
-                android:lineSpacingExtra="4dp"
-                android:ellipsize="end"
-                android:textColor="#8CFFFFFF"
-                android:textSize="13sp"
-                android:fontFamily="@font/outfit_regular"
-                android:letterSpacing="0.04"
+                android:layout_below="@id/stats"
+                android:layout_marginTop="14dp"
+                android:layout_marginStart="2dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/glass_panel"
+                android:paddingStart="12dp"
+                android:paddingEnd="18dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
                 android:focusable="false"
                 android:visibility="gone" />
 
             <!-- A Quran verse or hadith from a theme's quotes.json (tools/quotes.py), a new one each time Home comes
                  back: Arabic, the translation, the source. Shown with the top shelf; in the grid the dock covers it. -->
-            <TextView
+            <LinearLayout
                 android:id="@+id/quote"
                 android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_below="@id/prayerTimes"
                 android:layout_alignWithParentIfMissing="true"
-                android:gravity="left"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp"
                 android:layout_marginStart="4dp"
-                android:maxLines="6"
-                android:lineSpacingExtra="5dp"
-                android:ellipsize="end"
-                android:textColor="#BFFFFFFF"
-                android:textSize="14sp"
-                android:fontFamily="@font/outfit_regular"
                 android:focusable="false"
                 android:visibility="gone" />
 

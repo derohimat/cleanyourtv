@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#000000">
+    <!-- finial -->
+    <path android:fillColor="#000000"
+        android:pathData="M12,2.4 L12.7,3.3 L12,4.2 L11.3,3.3 Z" />
+    <!-- dome -->
+    <path android:fillColor="#000000"
+        android:pathData="M12,4.6 C8.9,4.6 6.8,7.1 6.8,10.2 L17.2,10.2 C17.2,7.1 15.1,4.6 12,4.6 Z" />
+    <!-- body with arched doorway -->
+    <path android:fillColor="#000000"
+        android:pathData="M7,11 L17,11 L17,21 L13.7,21 L13.7,15.7 A1.7,1.7 0 0,1 10.3,15.7 L10.3,21 L7,21 Z" />
+</vector>

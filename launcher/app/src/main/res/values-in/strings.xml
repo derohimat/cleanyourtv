@@ -4,7 +4,8 @@
      its 400 KB limit (CI). -->
 <resources>
     <string name="app_name">Beranda</string>
-    <string name="inputs">Input</string>
+    <string name="inputs">Sumber</string>
+    <string name="date_format">EEEE · d MMMM yyyy</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Setelan</string>
     <string name="choose_input">Input</string>
@@ -42,7 +43,8 @@
     <string name="reorder">Atur ulang aplikasi</string>
     <string name="reorder_not_saved">Urutan baru tidak dapat disimpan</string>
     <string name="greeting_with_name">%1$s, %2$s</string>
-    <string name="prayer_countdown">%1$s dalam %2$s</string>
+    <string name="prayer_next">Berikutnya</string>
+    <string name="prayer_countdown">%1$s · %2$s lagi</string>
     <string name="prayer_hours_minutes">%1$d j %2$d mnt</string>
     <string name="prayer_hours">%1$d j</string>
     <string name="prayer_minutes">%1$d mnt</string>
@@ -50,4 +52,5 @@
     <string name="prayer_service_name">Pengingat sholat</string>
     <string name="prayer_service_description">Menampilkan kartu dan bunyi singkat di atas aplikasi apa pun saat waktu sholat tiba.</string>
     <string name="hijri_date_format">%1$d %2$s %3$d H</string>
+    <string name="quote_eyebrow">Ayat hari ini</string>
 </resources>
