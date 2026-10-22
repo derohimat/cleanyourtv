@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Indonesian. Android uses the legacy "in" qualifier for Indonesian resources. The strings seen every day are
-     here; the module card prompts, the longer help texts and the stats line fall back to English, which keeps the APK under
+     here; the module card prompts, the longer help texts, the stats line and the app library (app_library) fall back to English, which keeps the APK under
      its 400 KB limit (CI). -->
 <resources>
     <string name="app_name">Beranda</string>
@@ -41,18 +41,6 @@
     <string name="dock_edit_hint">Pilih tempat di dock yang ingin diubah lalu tekan OK. Kembali untuk selesai.</string>
     <string name="reorder">Atur ulang aplikasi</string>
     <string name="reorder_not_saved">Urutan baru tidak dapat disimpan</string>
-    <string name="app_library">Pustaka aplikasi</string>
-    <string name="library_empty">Tidak ada aplikasi yang bisa dibuka</string>
-    <string name="library_on_home">Di Beranda</string>
-    <string name="library_add_home">Tambahkan ke Beranda</string>
-    <string name="library_remove_shortcut">Hapus dari Beranda</string>
-    <string name="library_open">Buka</string>
-    <string name="library_app_info">Info aplikasi</string>
-    <string name="library_save_failed">Pintasan tidak dapat disimpan</string>
-    <string name="library_recent">Baru · Tambahkan ke Beranda</string>
-    <plurals name="library_app_count">
-        <item quantity="other">%1$d aplikasi</item>
-    </plurals>
     <string name="greeting_with_name">%1$s, %2$s</string>
     <string name="prayer_countdown">%1$s dalam %2$s</string>
     <string name="prayer_hours_minutes">%1$d j %2$d mnt</string>

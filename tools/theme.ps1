@@ -28,7 +28,7 @@ $revision = [guid]::NewGuid().ToString('N')
 $restart = "a=`$(settings get secure enabled_accessibility_services); am force-stop $pkg; am start -n $pkg/.MainActivity >/dev/null; case `"`$a`" in *$pkg*) sleep 1; settings put secure enabled_accessibility_services ''; settings put secure enabled_accessibility_services `"`$a`"; settings put secure accessibility_enabled 1 ;; esac"
 
 if ($Reset) {
-    & $py -I tv.py "mkdir -p $dir; rm -f $dir/config.json $dir/wallpaper.jpg; printf '%s' '$revision' > $dir/theme_revision; $restart; echo reset"
+    & $py -I tv.py "mkdir -p $dir; rm -f $dir/config.json $dir/wallpaper.jpg $dir/quotes.json; printf '%s' '$revision' > $dir/theme_revision; $restart; echo reset"
     exit 0
 }
 if (-not $Theme) { throw 'usage: theme.ps1 <theme folder> | -Reset' }
@@ -40,6 +40,8 @@ try { Get-Content $config -Raw | ConvertFrom-Json | Out-Null } catch { throw "$c
 & $py -I tv.py --push $config "$dir/config.json"
 $wall = Join-Path $Theme 'wallpaper.jpg'
 if (Test-Path $wall) { & $py -I b64push.py $wall "$dir/wallpaper.jpg" } else { & $py -I tv.py "rm -f $dir/wallpaper.jpg" | Out-Null }
+$quotes = Join-Path $Theme 'quotes.json'
+if (Test-Path $quotes) { & $py -I b64push.py $quotes "$dir/quotes.json" } else { & $py -I tv.py "rm -f $dir/quotes.json" | Out-Null }
 & $py -I tv.py "mkdir -p $dir/wallpapers; rm -f $dir/wallpapers/*.jpg $dir/wallpapers/*.jpeg $dir/wallpapers/*.png $dir/wallpapers/*.webp $dir/wallpapers/*.JPG $dir/wallpapers/*.JPEG $dir/wallpapers/*.PNG $dir/wallpapers/*.WEBP" | Out-Null
 $wallpapers = Join-Path $Theme 'wallpapers'
 if (Test-Path $wallpapers -PathType Container) {

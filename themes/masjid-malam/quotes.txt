@@ -1,0 +1,37 @@
+# Quotes shown under the prayer times, a different one each time Home comes back.
+# Build quotes.json from this list with: python3 tools/quotes.py themes/masjid-malam/quotes.txt
+#
+# Quran: surah:verse or surah:first-last. Arabic and Kemenag's translation (2019 edition) via equran.id.
+# Short, self-contained verses only, so a verse fits under the clock and reads right on its own.
+quran 2:45
+quran 2:152
+quran 2:153
+quran 2:201
+quran 2:238
+quran 3:8
+quran 3:139
+quran 13:28
+quran 14:7
+quran 14:40
+quran 17:78
+quran 20:14
+quran 25:74
+quran 33:41
+quran 49:10
+quran 55:13
+quran 94:5-6
+quran 103:1-3
+quran 112:1-4
+
+# Hadith: Arba'in An-Nawawi via api.myquran.com, only those narrated by al-Bukhari and/or Muslim.
+# number | source | Arabic matan start … end | Indonesian matan start … end [| excerpt]
+# No. 21 is left out: the source's Arabic misspells آمَنْتُ as أَمَنْتُ.
+hadith 1  | HR. Bukhari dan Muslim | إِنَّمَا الأَعْمَالُ … مَا نَوَى | Amalan-amalan itu … apa yang ia niatkan. | excerpt
+hadith 13 | HR. Bukhari dan Muslim | لاَ يُؤْمِنُ … لِنَفْسِهِ | Tidaklah salah seorang … dirinya sendiri.
+hadith 15 | HR. Bukhari dan Muslim | مَنْ كَانَ يُؤمِنُ … لِيَصْمُتْ | Barangsiapa yang beriman … dia diam. | excerpt
+hadith 16 | HR. Bukhari | لاَ تَغْضَبْ | Janganlah engkau marah.
+hadith 20 | HR. Bukhari | إِنَّ مِمَّا أَدْرَكَ … مَا شِئْتَ | Sesungguhnya termasuk … berbuatlah sesukamu.
+hadith 23 | HR. Muslim | الطُّهُوْرُ شَطْرُ الإِيْمَانِ | Kesucian itu separuh dari iman | excerpt
+hadith 27 | HR. Muslim | اْلبِرُّ حُسْنُ الْخُلُقِ … عَلَيْهِ النَّاسُ | Kebaikan itu adalah akhlak … manusia mengetahuinya.
+hadith 34 | HR. Muslim | مَنْ رَأَى مِنْكُمْ … أَضْعَفُ الإيْمَانِ | Barang siapa di antara kalian … lemahnya iman.
+hadith 40 | HR. Bukhari | كُنْ فِي الدُّنْيَا … عَابِرُ سَبِيْلٍ | Jadilah engkau di dunia … atau pengembara

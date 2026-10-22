@@ -46,6 +46,7 @@ import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -130,6 +131,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Today's and tomorrow's times, recomputed when the date changes; null where the sun never gets there. */
     private LocalDate prayerDay;
     private int[] prayerToday, prayerTomorrow;
+    /** A verse or hadith under the prayer times, from a theme's quotes.json (tools/quotes.py); null: none. */
+    private TextView quote;
+    private org.json.JSONArray quotes;
     /** greeting_name: said after the greeting, which is shown in capitals. */
     private String greetingName = "";
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
@@ -311,6 +315,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (hijri) hijriDate.setVisibility(View.VISIBLE);
         prayerLine = findViewById(R.id.prayerTimes);
         prayer = cfg.prayer;
+        quote = findViewById(R.id.quote);
+        org.json.JSONObject quoteFile = Config.read(new java.io.File(Config.dir(this), "quotes.json"));
+        if (quoteFile != null) quotes = quoteFile.optJSONArray("quotes");
         vpnApp = cfg.vpnApp;
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
@@ -565,6 +572,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         rebuildOnResume = false;
         updateGreeting();
+        nextQuote();
         updateWifiLabel();
         updateInputsButton();
         if (showStats) startStats();
@@ -1074,9 +1082,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top shelf -------------------------------------------------------------------------------
 
     private void showHero(int position, float dockTopInRoot) {
+        fadeQuote(true);
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
-        float y = dockTopInRoot - 14 * density - 26 * density - heroName.getHeight();
+        float minY = dockTopInRoot - 14 * density - 26 * density - heroName.getHeight();
+        // A long quote can wrap past where the name would normally sit; never draw over it.
+        if (quote.getVisibility() == View.VISIBLE && quote.getHeight() > 0) {
+            Rect quoteRect = new Rect(0, 0, quote.getWidth(), quote.getHeight());
+            root.offsetDescendantRectToMyCoords(quote, quoteRect);
+            minY = Math.max(minY, quoteRect.bottom + 10 * density);
+        }
+        final float y = minY;
         boolean changed = !label.contentEquals(heroName.getText());
 
         if (!animations || reducedMotion) {
@@ -1213,6 +1229,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void hideHero() {
+        fadeQuote(false);
         if (!heroShown) return;
         stopAmbientAnimation();
         heroName.animate().cancel();
@@ -1573,6 +1590,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (shamsi) shamsiDate.setText(Shamsi.today());
         if (hijri) updateHijriDate();
         if (prayer != null) updatePrayerLine();
+    }
+
+    /** The next quote in the list, Arabic above its translation and source; the place in the list survives restarts. */
+    private void nextQuote() {
+        if (quotes == null || quotes.length() == 0) return;
+        android.content.SharedPreferences choices = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
+        int i = (choices.getInt("quote", -1) + 1) % quotes.length();
+        choices.edit().putInt("quote", i).apply();
+        org.json.JSONObject q = quotes.optJSONObject(i);
+        if (q == null) return;
+        SpannableStringBuilder text = new SpannableStringBuilder(q.optString("ar"));
+        text.setSpan(new RelativeSizeSpan(1.45f), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.setSpan(new ForegroundColorSpan(0xF2FFFFFF), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.append('\n').append(q.optString("id")).append('\n');
+        int start = text.length();
+        text.append(q.optString("src"));
+        text.setSpan(new RelativeSizeSpan(0.85f), start, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.setSpan(new ForegroundColorSpan(0x8CFFFFFF), start, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        quote.setText(text);
+        quote.setVisibility(View.VISIBLE);
+    }
+
+    private void fadeQuote(boolean show) {
+        quote.animate().cancel();
+        if (animations) quote.animate().alpha(show ? 1f : 0f).setDuration(show ? 260 : 160).start();
+        else quote.setAlpha(show ? 1f : 0f);
     }
 
     /** Milliseconds to the next whole minute, when the TextClocks turn over. */

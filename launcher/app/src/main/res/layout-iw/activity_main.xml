@@ -221,6 +221,27 @@
                 android:focusable="false"
                 android:visibility="gone" />
 
+            <!-- A Quran verse or hadith from a theme's quotes.json (tools/quotes.py), a new one each time Home comes
+                 back: Arabic, the translation, the source. Shown with the top shelf; in the grid the dock covers it. -->
+            <TextView
+                android:id="@+id/quote"
+                android:layout_width="match_parent"
+                android:layout_below="@id/prayerTimes"
+                android:layout_alignWithParentIfMissing="true"
+                android:gravity="right"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:layout_marginStart="4dp"
+                android:maxLines="6"
+                android:lineSpacingExtra="5dp"
+                android:ellipsize="end"
+                android:textColor="#BFFFFFFF"
+                android:textSize="14sp"
+                android:fontFamily="@font/outfit_regular"
+                android:focusable="false"
+                android:visibility="gone" />
+
+
             <LinearLayout
                 android:id="@+id/topButtons"
                 android:layout_width="wrap_content"

@@ -18,6 +18,7 @@ powershell -ExecutionPolicy Bypass -File tools\theme.ps1 -TvHost 192.168.1.50 th
 | `aurora/` | A dark aurora wallpaper (teal and violet on navy, darker at the bottom) with a matching background colour |
 | `dussehra/` | Festive skin for Dussehra (ends 21 Oct 2026): a marigold toran, a faint gold rangoli, a diya for Wi-Fi, a bell for Inputs, a marigold for Settings and a petal shower |
 | `six-columns/` | Six smaller tiles per row and one grid row visible under the dock |
+| `masjid-malam/` | Seven mosques at night or blue hour, rotating hourly, and a Quran verse or hadith under the prayer times (build `quotes.json` first, see below; wallpaper credits in `CREDITS.md`) |
 
 ## Keys
 
@@ -140,6 +141,23 @@ without extra permissions: install with `PRAYER_SERVICE=1 launcher/build-and-ins
 right for 30 seconds, over YouTube or anything else, with a short chime that ducks the video for a moment
 (`"prayer_sound": false` for the card alone). The card takes no focus and no keys. While the TV is in
 standby nothing shows. `adb shell am broadcast -a com.gathin.tvhome.PRAYER_TEST` shows it at once to check.
+
+### Quotes under the prayer times
+
+A theme can carry a `quotes.json`: a different Quran verse or hadith under the prayer times each time Home
+comes back, the Arabic above its translation and source, shown with the dock's top shelf and hidden while
+you browse the grid. The texts are not typed in: `quotes.txt` lists references, and
+
+```bash
+python3 tools/quotes.py themes/masjid-malam/quotes.txt     # writes themes/masjid-malam/quotes.json
+```
+
+fetches each one from its source and cuts it out exactly. Verses (`quran 94:5-6`) come with Kemenag's
+Indonesian translation (2019 edition) from equran.id. Hadith (`hadith 13 | HR. Bukhari dan Muslim | …`) come
+from Arba'in An-Nawawi on api.myquran.com; there the line also names where the Prophet's words begin and end,
+in Arabic and in Indonesian, so the chain of narrators and the notes are left out, and the run stops if a
+marker is not in the source. `tools/theme.sh` pushes the file with the theme; a theme without one removes it.
+The file is not in git, since the texts belong to their sources.
 
 ## Adding a theme
 

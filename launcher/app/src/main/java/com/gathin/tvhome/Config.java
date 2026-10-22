@@ -333,8 +333,8 @@ final class Config {
         }
     }
 
-    /** Reads and parses the overlay; any problem means "no overlay", never a crash on the home screen. */
-    private static JSONObject read(File file) {
+    /** Reads and parses the overlay (or quotes.json); any problem means "no file", never a crash on the home screen. */
+    static JSONObject read(File file) {
         if (file == null || !file.isFile()) return null;
         if (file.length() > 64 * 1024) {
             Log.w(TAG, "ignoring " + file + ": larger than 64 KB");
