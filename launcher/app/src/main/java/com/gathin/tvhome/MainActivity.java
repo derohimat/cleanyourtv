@@ -21,6 +21,7 @@ import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
@@ -46,8 +47,8 @@ import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
-import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -125,17 +126,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** config.xml hijri_date and hijri_offset. */
     private boolean hijri;
     private int hijriOffset;
-    private TextView prayerLine;
+    /** The prayer rail: a next-prayer lead-in and seven label-over-time cells, built in code (see updatePrayerLine). */
+    private LinearLayout prayerLine;
+    /** Outfit faces for the rail's cells, loaded once the rail is first shown. */
+    private Typeface tfLight, tfMedium;
     /** config.xml prayer_times with a valid location; null keeps the line gone and computes nothing. */
     private Config.Prayer prayer;
     /** Today's and tomorrow's times, recomputed when the date changes; null where the sun never gets there. */
     private LocalDate prayerDay;
     private int[] prayerToday, prayerTomorrow;
-    /** A verse or hadith under the prayer times, from a theme's quotes.json (tools/quotes.py); null: none. */
-    private TextView quote;
+    /** A verse or hadith under the prayer times, from a theme's quotes.json (tools/quotes.py): eyebrow, Arabic, translation, source. */
+    private LinearLayout quote;
     private org.json.JSONArray quotes;
     /** greeting_name: said after the greeting, which is shown in capitals. */
     private String greetingName = "";
+    /** greeting_text: a fixed greeting that replaces the time-of-day one; empty keeps the time-of-day greeting. */
+    private String greetingText = "";
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
     private SkyView sky;
     private String vpnApp;
@@ -287,7 +293,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
-        if (festive) glass.setAccent(festival.accentColor());
+        glass.setAccent(festive ? festival.accentColor() : FOCUS_GOLD);
         ambient = findViewById(R.id.ambient);
         // The glow is one bitmap, so its alpha can be applied while drawing it. Otherwise every frame of
         // a fade renders it into a full-screen offscreen buffer first.
@@ -303,6 +309,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         showStats = cfg.showStats;
         shamsi = cfg.shamsiDate;
         greetingName = cfg.greetingName;
+        greetingText = cfg.greetingText;
+        // A short time-zone label after the clock in 24-hour mode (config clock_zone_label, e.g. "WIB").
+        if (!cfg.clockZoneLabel.isEmpty()) {
+            ((android.widget.TextClock) findViewById(R.id.ampm))
+                    .setFormat24Hour("'" + cfg.clockZoneLabel.replace("'", "''") + "'");
+        }
         if (shamsi) {
             shamsiDate.setVisibility(View.VISIBLE);
             TextView date = findViewById(R.id.date);
@@ -735,6 +747,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Blue the glass turns while reorder mode is on. */
     private static final int REORDER_ACCENT = 0xFF6EC1FF;
+    /** The focus ring's warm gold, matching the prayer accent; keeps the per-app colour in the ambient wash behind it. */
+    private static final int FOCUS_GOLD = 0xFFE7C07B;
 
     /**
      * Reorder mode (top-bar button). While it is on, every key comes here first:
@@ -915,7 +929,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         drop();
         reordering = false;
         adapter.setReordering(false);
-        glass.setAccent(festive ? festival.accentColor() : 0);
+        glass.setAccent(festive ? festival.accentColor() : FOCUS_GOLD);
         btnReorder.setActivated(false);
         List<String> keys = adapter.movableKeys();
         List<String> before = orderAtStart;
@@ -1583,8 +1597,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             greeting.setText(festiveGreeting);
             greeting.setTextColor(liftTowardsWhite(festival.accentColor(), 0.25f));
         } else {
-            greeting.setText(greetingName.isEmpty() ? getString(res)
-                    : getString(R.string.greeting_with_name, getString(res), greetingName));
+            String base = greetingText.isEmpty() ? getString(res) : greetingText;
+            greeting.setText(greetingName.isEmpty() ? base
+                    : getString(R.string.greeting_with_name, base, greetingName));
             greeting.setTextColor(greetingColor);
         }
         if (shamsi) shamsiDate.setText(Shamsi.today());
@@ -1600,16 +1615,60 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         choices.edit().putInt("quote", i).apply();
         org.json.JSONObject q = quotes.optJSONObject(i);
         if (q == null) return;
-        SpannableStringBuilder text = new SpannableStringBuilder(q.optString("ar"));
-        text.setSpan(new RelativeSizeSpan(1.45f), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        text.setSpan(new ForegroundColorSpan(0xF2FFFFFF), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        text.append('\n').append(q.optString("id")).append('\n');
-        int start = text.length();
-        text.append(q.optString("src"));
-        text.setSpan(new RelativeSizeSpan(0.85f), start, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        text.setSpan(new ForegroundColorSpan(0x8CFFFFFF), start, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        quote.setText(text);
+        if (tfMedium == null) {
+            tfLight = getResources().getFont(R.font.outfit_light);
+            tfMedium = getResources().getFont(R.font.outfit_medium);
+        }
+        quote.removeAllViews();
+
+        TextView eyebrow = new TextView(this);
+        eyebrow.setText("—   " + getString(R.string.quote_eyebrow).toUpperCase());
+        eyebrow.setAllCaps(true);
+        eyebrow.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        eyebrow.setLetterSpacing(0.2f);
+        eyebrow.setTypeface(tfMedium);
+        eyebrow.setTextColor(0xCCE7C07B);
+        quote.addView(eyebrow, quoteRow(0));
+
+        // The verse itself, centred as a quiet focal point over the wallpaper; Arabic falls back to the system naskh.
+        TextView arabic = new TextView(this);
+        arabic.setText(q.optString("ar"));
+        arabic.setGravity(Gravity.CENTER_HORIZONTAL);
+        arabic.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+        arabic.setTextColor(0xF2FFFFFF);
+        arabic.setMaxLines(2);
+        arabic.setEllipsize(TextUtils.TruncateAt.END);
+        arabic.setLineSpacing(dp(5), 1f);
+        quote.addView(arabic, quoteRow(10));
+
+        TextView translation = new TextView(this);
+        translation.setText("“" + q.optString("id") + "”");
+        translation.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        translation.setTypeface(tfLight);
+        translation.setTextColor(0xD9FFFFFF);
+        translation.setMaxLines(2);
+        translation.setEllipsize(TextUtils.TruncateAt.END);
+        translation.setLineSpacing(dp(4), 1f);
+        quote.addView(translation, quoteRow(10));
+
+        TextView source = new TextView(this);
+        source.setText(q.optString("src"));
+        source.setAllCaps(true);
+        source.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        source.setLetterSpacing(0.1f);
+        source.setTypeface(tfMedium);
+        source.setTextColor(0x99E7C07B);
+        quote.addView(source, quoteRow(8));
+
         quote.setVisibility(View.VISIBLE);
+    }
+
+    /** A full-width row in the quote block, with a top margin in dp. */
+    private LinearLayout.LayoutParams quoteRow(int topDp) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(topDp);
+        return lp;
     }
 
     private void fadeQuote(boolean show) {
@@ -1658,22 +1717,113 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (tomorrow) next = PrayerTimes.SUBUH;
         int until = times[next] + (tomorrow ? 1440 : 0) - minute;
         String[] names = PrayerTimes.NAMES;
-
-        SpannableStringBuilder line = new SpannableStringBuilder(
-                getString(R.string.prayer_countdown, names[next], PrayerText.duration(this, until)));
-        line.setSpan(new ForegroundColorSpan(0xE6FFFFFF), 0, line.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        line.append('\n');
-        for (int i = 0; i < times.length; i++) {
-            if (i > 0) line.append("     ");
-            int start = line.length();
-            line.append(names[i]).append("  ").append(PrayerText.clock(this, times[i]));
-            if (i == next) {
-                line.setSpan(new ForegroundColorSpan(Color.WHITE), start, line.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                line.setSpan(new StyleSpan(Typeface.BOLD), start, line.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
+        if (tfMedium == null) {
+            tfLight = getResources().getFont(R.font.outfit_light);
+            tfMedium = getResources().getFont(R.font.outfit_medium);
         }
-        prayerLine.setText(line);
+        prayerLine.removeAllViews();
+        prayerLine.addView(prayerNextBlock(names[next], until));
+        prayerLine.addView(prayerDivider());
+        for (int i = 0; i < times.length; i++) {
+            prayerLine.addView(prayerCell(names[i], PrayerText.clock(this, times[i]), i == next));
+        }
         prayerLine.setVisibility(View.VISIBLE);
+    }
+
+    private int dp(float v) {
+        return Math.round(v * density);
+    }
+
+    /** The gold-iconed lead-in on the rail: a label and the countdown to the coming prayer. */
+    private View prayerNextBlock(String name, int until) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.HORIZONTAL);
+        block.setGravity(Gravity.CENTER_VERTICAL);
+        block.setPadding(dp(2), 0, dp(12), 0);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_prayer);
+        icon.setColorFilter(0xFF1A1205);
+        int ip = dp(10);
+        icon.setPadding(ip, ip, ip, ip);
+        GradientDrawable square = new GradientDrawable();
+        square.setColor(FOCUS_GOLD);
+        square.setCornerRadius(dp(13));
+        icon.setBackground(square);
+        block.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        TextView label = new TextView(this);
+        label.setText(R.string.prayer_next);
+        label.setAllCaps(true);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        label.setLetterSpacing(0.18f);
+        label.setTypeface(tfMedium);
+        label.setTextColor(0xE6E7C07B);
+        col.addView(label);
+        TextView value = new TextView(this);
+        SpannableStringBuilder s = new SpannableStringBuilder(
+                getString(R.string.prayer_countdown, name, PrayerText.duration(this, until)));
+        s.setSpan(new ForegroundColorSpan(0x99FFFFFF), 0, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        s.setSpan(new ForegroundColorSpan(Color.WHITE), 0, name.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        value.setText(s);
+        value.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        value.setTypeface(tfMedium);
+        value.setPadding(0, dp(2), 0, 0);
+        col.addView(value);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        clp.leftMargin = dp(13);
+        block.addView(col, clp);
+        return block;
+    }
+
+    private View prayerDivider() {
+        View v = new View(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Math.max(1, dp(1)), dp(42));
+        lp.leftMargin = dp(12);
+        lp.rightMargin = dp(16);
+        lp.gravity = Gravity.CENTER_VERTICAL;
+        v.setLayoutParams(lp);
+        v.setBackgroundColor(0x1AFFFFFF);
+        return v;
+    }
+
+    /** One prayer's name over its time; the coming prayer gets a filled gold chip with dark text. */
+    private View prayerCell(String name, String time, boolean next) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setGravity(Gravity.CENTER_HORIZONTAL);
+        cell.setPadding(dp(11), dp(8), dp(11), dp(8));
+        if (next) {
+            GradientDrawable chip = new GradientDrawable();
+            chip.setColor(FOCUS_GOLD);
+            chip.setCornerRadius(dp(13));
+            cell.setBackground(chip);
+        }
+        TextView label = new TextView(this);
+        label.setText(name);
+        label.setAllCaps(true);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        label.setLetterSpacing(0.12f);
+        label.setTypeface(tfMedium);
+        label.setTextColor(next ? 0xC01A1205 : 0x66FFFFFF);
+        cell.addView(label);
+        TextView value = new TextView(this);
+        value.setText(time);
+        value.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19);
+        value.setTypeface(next ? tfMedium : tfLight);
+        value.setTextColor(next ? 0xFF1A1205 : 0xB8FFFFFF);
+        value.setPadding(0, dp(3), 0, 0);
+        cell.addView(value);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.leftMargin = dp(2);
+        lp.rightMargin = dp(2);
+        lp.gravity = Gravity.CENTER_VERTICAL;
+        cell.setLayoutParams(lp);
+        return cell;
     }
 
     /** Shows the Wi-Fi network name on the button when we can read it, otherwise the connection type. */

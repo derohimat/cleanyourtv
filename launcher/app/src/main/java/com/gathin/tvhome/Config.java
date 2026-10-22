@@ -56,6 +56,10 @@ final class Config {
     final Prayer prayer;
     /** Name after the greeting ("Good morning, Mr. Trịnh"); empty for the greeting alone. */
     final String greetingName;
+    /** A fixed greeting (config greeting_text) that replaces the time-of-day one; empty keeps the time-of-day greeting. */
+    final String greetingText;
+    /** A short time-zone label (config clock_zone_label) shown after the clock in 24-hour mode, e.g. "WIB"; empty: none. */
+    final String clockZoneLabel;
     final boolean moduleCards;
     /** Calmer motion for weak GPUs (config.xml, reduced_motion): stiff spring, short fades, no replay. */
     final boolean reducedMotion;
@@ -104,7 +108,9 @@ final class Config {
                    int[] settingsKeycodes, boolean settingsKeyPanel, boolean wallpaperEnabled, File wallpaper, List<File> wallpapers,
                    int wallpaperRotationMinutes, int wallpaperDim, boolean overlayApplied,
                    Festival festival, int[] inputKeycodes, List<String> appKeys,
-                   boolean hijriDate, int hijriOffset, Prayer prayer) {
+                   boolean hijriDate, int hijriOffset, Prayer prayer, String greetingText, String clockZoneLabel) {
+        this.greetingText = greetingText;
+        this.clockZoneLabel = clockZoneLabel;
         this.hijriDate = hijriDate;
         this.hijriOffset = hijriOffset;
         this.prayer = prayer;
@@ -167,6 +173,8 @@ final class Config {
         boolean advancedEffects = res.getBoolean(R.bool.advanced_effects);
         boolean shamsi = res.getBoolean(R.bool.shamsi_date);
         String greetingName = res.getString(R.string.greeting_name).trim();
+        String greetingText = res.getString(R.string.greeting_text).trim();
+        String clockZoneLabel = res.getString(R.string.clock_zone_label).trim();
         boolean moduleCards = res.getBoolean(R.bool.module_cards);
         boolean reducedMotion = res.getBoolean(R.bool.reduced_motion);
         boolean dockTitle = res.getBoolean(R.bool.dock_title);
@@ -212,6 +220,8 @@ final class Config {
             advancedEffects = bool(json, "advanced_effects", advancedEffects);
             shamsi = bool(json, "shamsi_date", shamsi);
             greetingName = string(json, "greeting_name", greetingName).trim();
+            greetingText = string(json, "greeting_text", greetingText).trim();
+            clockZoneLabel = string(json, "clock_zone_label", clockZoneLabel).trim();
             moduleCards = bool(json, "module_cards", moduleCards);
             reducedMotion = bool(json, "reduced_motion", reducedMotion);
             dockTitle = bool(json, "dock_title", dockTitle);
@@ -268,7 +278,8 @@ final class Config {
                 wallpapers, rotationMinutes, wallpaperDim, applied,
                 festival, inputKeycodes, appKeys,
                 hijri, Math.max(-2, Math.min(2, hijriOffset)),
-                prayerTimes ? Prayer.of(prayerLat, prayerLon, prayerElevation, prayerCity, prayerMethod, prayerSound) : null);
+                prayerTimes ? Prayer.of(prayerLat, prayerLon, prayerElevation, prayerCity, prayerMethod, prayerSound) : null,
+                greetingText.isEmpty() ? "" : greetingText, clockZoneLabel);
     }
 
     /** Where and how the prayer times are computed (config.xml prayer_*), and whether the reminder chimes. */
