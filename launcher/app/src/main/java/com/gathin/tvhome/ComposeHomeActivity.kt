@@ -106,10 +106,12 @@ private class HomeData(
  */
 class ComposeHomeActivity : ComponentActivity() {
 
-    // Apps are read once; the screen data (clock, prayer, rotating quote) is refreshed on every return to Home.
+    // Apps and the wallpaper are read on return to Home; the prayer countdown re-reads each minute.
     private var dock: List<AppEntry> = emptyList()
     private var grid: List<AppEntry> = emptyList()
+    private var wallpaper: ImageBitmap? = null
     private val dataState = androidx.compose.runtime.mutableStateOf<HomeData?>(null)
+    private val gridOpen = androidx.compose.runtime.mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,9 +122,10 @@ class ComposeHomeActivity : ComponentActivity() {
         setContent {
             dataState.value?.let { data ->
                 HomeScreen(
-                    data, dock, grid,
+                    data, dock, grid, gridOpen,
                     onLaunch = { intent -> runCatching { startActivity(intent) } },
-                    onSystem = { action -> runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                    onSystem = { action -> runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
+                    onTick = { dataState.value = readHome(Config.load(this), advanceQuote = false) }
                 )
             }
         }
@@ -130,11 +133,12 @@ class ComposeHomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Recompute the clock/prayer and advance to the next quote, like the View launcher does on resume.
-        dataState.value = readHome(Config.load(this))
+        // Returning to Home: close the grid, reload the wallpaper, recompute prayer and advance the quote.
+        gridOpen.value = false
+        dataState.value = readHome(Config.load(this), advanceQuote = true)
     }
 
-    private fun readHome(cfg: Config): HomeData {
+    private fun readHome(cfg: Config, advanceQuote: Boolean): HomeData {
         val now = Calendar.getInstance()
 
         // Greeting (time-of-day, or the configured fixed greeting, plus an optional name).
@@ -189,23 +193,28 @@ class ComposeHomeActivity : ComponentActivity() {
         val quotes = quoteFile?.optJSONArray("quotes")
         if (quotes != null && quotes.length() > 0) {
             val prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE)
-            val i = (prefs.getInt("quote", -1) + 1) % quotes.length()
-            prefs.edit().putInt("quote", i).apply()
+            // Advance to the next quote only on return to Home; a minute tick keeps the same one.
+            val i = if (advanceQuote) {
+                val n = (prefs.getInt("quote", -1) + 1) % quotes.length()
+                prefs.edit().putInt("quote", n).apply()
+                n
+            } else {
+                ((prefs.getInt("quote", 0) % quotes.length()) + quotes.length()) % quotes.length()
+            }
             quotes.optJSONObject(i)?.let {
                 ar = it.optString("ar"); id = it.optString("id"); src = it.optString("src")
             }
         }
 
-        // Wallpaper: the rotation's current pick (by the hour), downsampled to the screen.
-        var wall: androidx.compose.ui.graphics.ImageBitmap? = null
-        val files = cfg.wallpapers
-        if (cfg.wallpaperEnabled && files.isNotEmpty()) {
-            val file = files[(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) % files.size]
-            wall = decodeScaled(file)
+        // Wallpaper: reload the rotation's current pick only on return to Home, not on minute ticks.
+        if (advanceQuote) {
+            val files = cfg.wallpapers
+            wallpaper = if (cfg.wallpaperEnabled && files.isNotEmpty())
+                decodeScaled(files[Calendar.getInstance().get(Calendar.HOUR_OF_DAY) % files.size]) else null
         }
 
         return HomeData(greeting.uppercase(Locale("in", "ID")), cfg.clockZoneLabel, dateLine.uppercase(Locale("in", "ID")),
-            hijriLine?.uppercase(Locale("in", "ID")), nextName, countdown, cells, ar, id, src, wall, cfg.wallpaperDim / 100f)
+            hijriLine?.uppercase(Locale("in", "ID")), nextName, countdown, cells, ar, id, src, wallpaper, cfg.wallpaperDim / 100f)
     }
 
     private fun decodeScaled(file: File): ImageBitmap? {
@@ -256,12 +265,20 @@ private fun HomeScreen(
     d: HomeData,
     dock: List<AppEntry>,
     grid: List<AppEntry>,
+    gridOpen: androidx.compose.runtime.MutableState<Boolean>,
     onLaunch: (Intent) -> Unit,
-    onSystem: (String) -> Unit
+    onSystem: (String) -> Unit,
+    onTick: () -> Unit
 ) {
-    var gridOpen by remember { mutableStateOf(false) }
     val dockFocus = remember { FocusRequester() }
-    LaunchedEffect(gridOpen) { if (!gridOpen) runCatching { dockFocus.requestFocus() } }
+    LaunchedEffect(gridOpen.value) { if (!gridOpen.value) runCatching { dockFocus.requestFocus() } }
+    // Re-read the prayer countdown on each minute boundary (keeps the same quote and wallpaper).
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L * (61 - (System.currentTimeMillis() / 1000 % 60)))
+            onTick()
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF05070D))) {
         if (d.wallpaper != null) {
@@ -289,11 +306,11 @@ private fun HomeScreen(
                 Quote(d)
             }
             Spacer(Modifier.weight(1f))
-            if (dock.isNotEmpty()) Dock(dock, dockFocus, onLaunch, onOpenGrid = { gridOpen = true })
+            if (dock.isNotEmpty()) Dock(dock, dockFocus, onLaunch, onOpenGrid = { gridOpen.value = true })
             Spacer(Modifier.height(22.dp))
         }
 
-        if (gridOpen) AppGrid(grid, onLaunch, onClose = { gridOpen = false })
+        if (gridOpen.value) AppGrid(grid, onLaunch, onClose = { gridOpen.value = false })
     }
 }
 
