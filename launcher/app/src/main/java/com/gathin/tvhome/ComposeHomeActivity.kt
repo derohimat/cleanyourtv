@@ -1,12 +1,15 @@
 package com.gathin.tvhome
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.provider.Settings
+import android.util.DisplayMetrics
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -21,6 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -34,6 +38,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -46,6 +51,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,6 +65,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -66,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import java.io.File
 import java.text.SimpleDateFormat
@@ -73,6 +81,7 @@ import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.Random
 
 private val Outfit = FontFamily(Font(R.font.outfit))
 private val Gold = Color(0xFFE7C07B)
@@ -82,7 +91,7 @@ private val DarkInk = Color(0xFF1A1205)
 private class Pray(val name: String, val time: String, val next: Boolean)
 
 /** A launchable app tile (dock or grid). */
-private class AppEntry(val pkg: String, val label: String, val banner: ImageBitmap?, val launch: Intent?)
+private class AppEntry(val pkg: String, val label: String, val image: ImageBitmap?, val isBanner: Boolean, val launch: Intent?)
 
 /** Everything the Home screen draws, read once from the existing Java Config/PrayerTimes/Hijri logic. */
 private class HomeData(
@@ -97,7 +106,9 @@ private class HomeData(
     val quoteId: String?,
     val quoteSrc: String?,
     val wallpaper: androidx.compose.ui.graphics.ImageBitmap?,
-    val dim: Float
+    val dim: Float,
+    /** Milliseconds between wallpaper rotations; 0 means no timed rotation. */
+    val wallpaperRotationMs: Long
 )
 
 /**
@@ -106,12 +117,15 @@ private class HomeData(
  */
 class ComposeHomeActivity : ComponentActivity() {
 
-    // Apps and the wallpaper are read on return to Home; the prayer countdown re-reads each minute.
+    // Apps are read once at startup; prayer/quote/wallpaper refresh on resume.
     private var dock: List<AppEntry> = emptyList()
     private var grid: List<AppEntry> = emptyList()
-    private var wallpaper: ImageBitmap? = null
     private val dataState = androidx.compose.runtime.mutableStateOf<HomeData?>(null)
     private val gridOpen = androidx.compose.runtime.mutableStateOf(false)
+
+    // WallpaperRotation state: last picked filename and a stable Random instance.
+    private var wallpaperPrevious: String? = null
+    private val wallpaperRandom = Random()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,7 +140,8 @@ class ComposeHomeActivity : ComponentActivity() {
                     onLaunch = { intent -> runCatching { startActivity(intent) } },
                     onSystem = { action -> runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
                     onPanel = { runCatching { startActivity(Intent(this, QuickSettingsActivity::class.java)) } },
-                    onTick = { dataState.value = readHome(Config.load(this), advanceQuote = false) }
+                    onTick = { dataState.value = readHome(Config.load(this), advanceQuote = false, advanceWallpaper = false) },
+                    onWallpaperRotate = { dataState.value = readHome(Config.load(this), advanceQuote = false, advanceWallpaper = true) }
                 )
             }
         }
@@ -136,10 +151,20 @@ class ComposeHomeActivity : ComponentActivity() {
         super.onResume()
         // Returning to Home: close the grid, reload the wallpaper, recompute prayer and advance the quote.
         gridOpen.value = false
-        dataState.value = readHome(Config.load(this), advanceQuote = true)
+        dataState.value = readHome(Config.load(this), advanceQuote = true, advanceWallpaper = true)
     }
 
-    private fun readHome(cfg: Config, advanceQuote: Boolean): HomeData {
+    /**
+     * Called when the HOME key is pressed while this activity is already the top task.
+     * Close the app grid and restore dock focus.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        gridOpen.value = false
+        // Focus restoration is handled by the LaunchedEffect(gridOpen.value) in HomeScreen.
+    }
+
+    private fun readHome(cfg: Config, advanceQuote: Boolean, advanceWallpaper: Boolean): HomeData {
         val now = Calendar.getInstance()
 
         // Greeting (time-of-day, or the configured fixed greeting, plus an optional name).
@@ -155,7 +180,8 @@ class ComposeHomeActivity : ComponentActivity() {
         val greeting = if (cfg.greetingName.isEmpty()) base
         else getString(R.string.greeting_with_name, base, cfg.greetingName)
 
-        val dateLine = SimpleDateFormat("EEEE · d MMMM yyyy", Locale("in", "ID")).format(Date())
+        val datePattern = getString(R.string.date_format)
+        val dateLine = SimpleDateFormat(datePattern, Locale.getDefault()).format(Date())
 
         var hijriLine: String? = null
         if (cfg.hijriDate) {
@@ -186,7 +212,7 @@ class ComposeHomeActivity : ComponentActivity() {
             }
         }
 
-        // Quote (a new one each open, like the View launcher).
+        // Quote (a new one each return to Home).
         var ar: String? = null
         var id: String? = null
         var src: String? = null
@@ -207,16 +233,37 @@ class ComposeHomeActivity : ComponentActivity() {
             }
         }
 
-        // Wallpaper: reload the rotation's current pick only on return to Home, not on minute ticks.
-        if (advanceQuote) {
+        // Wallpaper: use WallpaperRotation.pick() for proper random no-repeat selection.
+        // Only rotate (pick a new image) when advanceWallpaper is true; on minute ticks keep the
+        // current image so the screen does not flash.
+        if (advanceWallpaper) {
             val files = cfg.wallpapers
-            wallpaper = if (cfg.wallpaperEnabled && files.isNotEmpty())
-                decodeScaled(files[Calendar.getInstance().get(Calendar.HOUR_OF_DAY) % files.size]) else null
+            if (cfg.wallpaperEnabled && files.isNotEmpty()) {
+                val picked = WallpaperRotation.pick(files, wallpaperPrevious, wallpaperRandom)
+                if (picked != null) {
+                    wallpaperPrevious = picked.name
+                    wallpaper = decodeScaled(picked)
+                } else {
+                    wallpaper = null
+                }
+            } else {
+                wallpaper = null
+            }
         }
 
-        return HomeData(greeting.uppercase(Locale("in", "ID")), cfg.clockZoneLabel, dateLine.uppercase(Locale("in", "ID")),
-            hijriLine?.uppercase(Locale("in", "ID")), nextName, countdown, cells, ar, id, src, wallpaper, cfg.wallpaperDim / 100f)
+        val rotationMs = if (cfg.wallpaperRotationMinutes > 0)
+            cfg.wallpaperRotationMinutes * 60_000L else 0L
+
+        return HomeData(
+            greeting.uppercase(Locale.getDefault()), cfg.clockZoneLabel,
+            dateLine.uppercase(Locale.getDefault()),
+            hijriLine?.uppercase(Locale.getDefault()), nextName, countdown, cells, ar, id, src,
+            wallpaper, cfg.wallpaperDim / 100f, rotationMs
+        )
     }
+
+    // Held across readHome calls so the wallpaper persists on minute ticks.
+    private var wallpaper: ImageBitmap? = null
 
     private fun decodeScaled(file: File): ImageBitmap? {
         return try {
@@ -241,17 +288,52 @@ class ComposeHomeActivity : ComponentActivity() {
             val pkg = ri.activityInfo.packageName
             if (pkg == packageName || cfg.hiddenApps.contains(pkg) || entries.containsKey(pkg)) continue
             val label = ri.loadLabel(pm)?.toString() ?: pkg
-            val banner = (ri.activityInfo.loadBanner(pm) ?: ri.loadIcon(pm))?.let { drawableToImageBitmap(it) }
-            entries[pkg] = AppEntry(pkg, label, banner, pm.getLeanbackLaunchIntentForPackage(pkg))
+            val (image, isBanner) = loadAppImage(pm, ri)
+            entries[pkg] = AppEntry(pkg, label, image, isBanner, pm.getLeanbackLaunchIntentForPackage(pkg))
         }
         val dock = cfg.dockApps.mapNotNull { entries[it] }
-        val grid = entries.values.sortedBy { it.label.lowercase() }
+        val grid = entries.values.sortedBy { it.label.lowercase(Locale.getDefault()) }
         return dock to grid
     }
 
-    private fun drawableToImageBitmap(d: Drawable): ImageBitmap? = try {
-        val w = (if (d.intrinsicWidth > 0) d.intrinsicWidth else 320).coerceAtMost(640)
-        val h = (if (d.intrinsicHeight > 0) d.intrinsicHeight else 180).coerceAtMost(360)
+    private fun loadAppImage(pm: PackageManager, ri: ResolveInfo): Pair<ImageBitmap?, Boolean> {
+        val b = loadBannerDrawable(pm, ri)
+        if (b != null && isBannerShaped(b.intrinsicWidth, b.intrinsicHeight)) {
+            return drawableToImageBitmap(b, isBanner = true) to true
+        }
+        val icon = ri.activityInfo.loadIcon(pm) ?: ri.loadIcon(pm)
+        return drawableToImageBitmap(icon, isBanner = false) to false
+    }
+
+    private fun loadBannerDrawable(pm: PackageManager, ri: ResolveInfo): Drawable? {
+        var id = ri.activityInfo.banner
+        if (id == 0) id = ri.activityInfo.applicationInfo.banner
+        if (id != 0) {
+            try {
+                val res = pm.getResourcesForApplication(ri.activityInfo.applicationInfo)
+                val density = Math.max(DisplayMetrics.DENSITY_XHIGH, resources.displayMetrics.densityDpi)
+                val d = res.getDrawableForDensity(id, density, null)
+                if (d != null) return d
+            } catch (_: Throwable) {}
+        }
+        return ri.activityInfo.loadBanner(pm)
+    }
+
+    private fun isBannerShaped(width: Int, height: Int): Boolean {
+        return width <= 0 || height <= 0 || width >= height * 1.35f
+    }
+
+    private fun drawableToImageBitmap(d: Drawable, isBanner: Boolean): ImageBitmap? = try {
+        val w = if (isBanner) {
+            (if (d.intrinsicWidth > 0) d.intrinsicWidth else 320).coerceIn(320, 640)
+        } else {
+            (if (d.intrinsicWidth > 0) d.intrinsicWidth else 128).coerceIn(96, 256)
+        }
+        val h = if (isBanner) {
+            (if (d.intrinsicHeight > 0) d.intrinsicHeight else 180).coerceIn(180, 360)
+        } else {
+            (if (d.intrinsicHeight > 0) d.intrinsicHeight else 128).coerceIn(96, 256)
+        }
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         d.setBounds(0, 0, w, h)
         d.draw(Canvas(bmp))
@@ -270,10 +352,17 @@ private fun HomeScreen(
     onLaunch: (Intent) -> Unit,
     onSystem: (String) -> Unit,
     onPanel: () -> Unit,
-    onTick: () -> Unit
+    onTick: () -> Unit,
+    onWallpaperRotate: () -> Unit
 ) {
-    val dockFocus = remember { FocusRequester() }
-    LaunchedEffect(gridOpen.value) { if (!gridOpen.value) runCatching { dockFocus.requestFocus() } }
+    // 1a: Track which dock tile was last focused so we restore to it (not always tile 0).
+    var lastDockIndex by remember { mutableIntStateOf(0) }
+    // One FocusRequester per dock slot; recreated only when the dock size changes.
+    val dockFocusers = remember(dock.size) { List(dock.size) { FocusRequester() } }
+    LaunchedEffect(gridOpen.value) {
+        if (!gridOpen.value) runCatching { dockFocusers.getOrNull(lastDockIndex)?.requestFocus() }
+    }
+
     // Re-read the prayer countdown on each minute boundary (keeps the same quote and wallpaper).
     LaunchedEffect(Unit) {
         while (true) {
@@ -281,6 +370,20 @@ private fun HomeScreen(
             onTick()
         }
     }
+
+    // 1b: Rotate the wallpaper on the theme's configured timer interval.
+    LaunchedEffect(d.wallpaperRotationMs) {
+        if (d.wallpaperRotationMs > 0) {
+            delay(d.wallpaperRotationMs)
+            while (true) {
+                onWallpaperRotate()
+                delay(d.wallpaperRotationMs)
+            }
+        }
+    }
+
+    // 1d: Grid scroll state hoisted here so it persists across open/close in the same session.
+    val gridScrollState = rememberLazyGridState()
 
     Box(Modifier.fillMaxSize().background(Color(0xFF05070D))) {
         if (d.wallpaper != null) {
@@ -297,31 +400,36 @@ private fun HomeScreen(
         )
         if (d.dim > 0f) Box(Modifier.fillMaxSize().background(Color(0xFF05070D).copy(alpha = d.dim)))
 
-        Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 44.dp)) {
+        Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 36.dp, bottom = 32.dp)) {
             Header(d, onSystem, onPanel)
             if (d.cells.isNotEmpty()) {
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
                 PrayerRail(d)
             }
             if (d.quoteAr != null) {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(14.dp))
                 Quote(d)
             }
             Spacer(Modifier.weight(1f))
-            if (dock.isNotEmpty()) Dock(dock, dockFocus, onLaunch, onOpenGrid = { gridOpen.value = true })
-            Spacer(Modifier.height(22.dp))
+            if (dock.isNotEmpty()) Dock(
+                apps = dock,
+                focusers = dockFocusers,
+                onFocused = { idx -> lastDockIndex = idx },
+                onLaunch = onLaunch,
+                onOpenGrid = { gridOpen.value = true }
+            )
         }
 
-        if (gridOpen.value) AppGrid(grid, onLaunch, onClose = { gridOpen.value = false })
+        if (gridOpen.value) AppGrid(grid, gridScrollState, onLaunch, onClose = { gridOpen.value = false })
     }
 }
 
 @Composable
 private fun TopButtons(onSystem: (String) -> Unit, onPanel: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Pill("SUMBER") { onSystem(Settings.ACTION_SETTINGS) }
-        Pill("JARINGAN") { onSystem(Settings.ACTION_WIFI_SETTINGS) }
-        Pill("SETELAN") { onPanel() }
+        Pill(stringResource(R.string.inputs).uppercase()) { onSystem(Settings.ACTION_SETTINGS) }
+        Pill(stringResource(R.string.quick_network).uppercase()) { onSystem(Settings.ACTION_WIFI_SETTINGS) }
+        Pill(stringResource(R.string.settings).uppercase()) { onPanel() }
     }
 }
 
@@ -343,16 +451,37 @@ private fun Pill(label: String, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 1a: Dock now receives one FocusRequester per tile and an onFocused callback so the
+ * parent can track which tile was last selected and restore to it when the grid closes.
+ */
 @Composable
-private fun Dock(apps: List<AppEntry>, firstFocus: FocusRequester, onLaunch: (Intent) -> Unit, onOpenGrid: () -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+private fun Dock(
+    apps: List<AppEntry>,
+    focusers: List<FocusRequester>,
+    onFocused: (Int) -> Unit,
+    onLaunch: (Intent) -> Unit,
+    onOpenGrid: () -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 14.dp)
+    ) {
         itemsIndexed(apps) { i, app ->
-            Tile(app, if (i == 0) firstFocus else null, 196.dp, 116.dp, onLaunch, onOpenGrid)
+            Tile(
+                app = app,
+                fr = focusers.getOrNull(i),
+                w = 196.dp,
+                h = 110.dp,
+                onLaunch = onLaunch,
+                onDown = onOpenGrid,
+                onFocused = { onFocused(i) }
+            )
         }
     }
 }
 
-/** A focusable app tile: banner, gold ring + lift on focus, launches on click. onDown opens the grid (dock only). */
+/** A focusable app tile: banner or centered icon, gold ring + lift on focus, launches on click. onDown opens the grid (dock only). */
 @Composable
 private fun Tile(
     app: AppEntry,
@@ -360,19 +489,25 @@ private fun Tile(
     w: androidx.compose.ui.unit.Dp,
     h: androidx.compose.ui.unit.Dp,
     onLaunch: (Intent) -> Unit,
-    onDown: (() -> Unit)? = null
+    onDown: (() -> Unit)? = null,
+    /** Called when this tile gains focus; used to track the last-focused dock tile. */
+    onFocused: (() -> Unit)? = null
 ) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "tileScale")
     Box(
         Modifier
+            .zIndex(if (focused) 2f else 1f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width = w, height = h)
             .clip(RoundedCornerShape(18.dp))
             .background(Color(0xFF0B0B10))
             .then(if (focused) Modifier.border(3.dp, Gold, RoundedCornerShape(18.dp)) else Modifier)
             .then(if (fr != null) Modifier.focusRequester(fr) else Modifier)
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocused?.invoke()
+            }
             .then(
                 if (onDown != null) Modifier.onPreviewKeyEvent { e ->
                     if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionDown) { onDown(); true } else false
@@ -382,31 +517,48 @@ private fun Tile(
             .clickable { app.launch?.let(onLaunch) },
         contentAlignment = Alignment.Center
     ) {
-        if (app.banner != null) {
-            Image(app.banner, app.label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        if (app.image != null) {
+            if (app.isBanner) {
+                Image(app.image, app.label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Image(app.image, app.label, Modifier.size(52.dp), contentScale = ContentScale.Fit)
+                }
+            }
         } else {
             BasicText(app.label, style = TextStyle(color = Color.White, fontSize = 18.sp, fontFamily = Outfit))
         }
     }
 }
 
+/**
+ * 1d: gridState is hoisted from HomeScreen so the scroll position survives close/reopen
+ * within the same session. Each new onResume resets it naturally (state is recreated).
+ */
 @Composable
-private fun AppGrid(apps: List<AppEntry>, onLaunch: (Intent) -> Unit, onClose: () -> Unit) {
+private fun AppGrid(
+    apps: List<AppEntry>,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    onLaunch: (Intent) -> Unit,
+    onClose: () -> Unit
+) {
     BackHandler(enabled = true) { onClose() }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     Box(Modifier.fillMaxSize().background(Color(0xFF05070D))) {
-        Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 44.dp, bottom = 32.dp)) {
-            BasicText("SEMUA APLIKASI", style = TextStyle(color = Gold, fontSize = 13.sp, letterSpacing = 2.8.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium))
-            Spacer(Modifier.height(20.dp))
+        Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 36.dp, bottom = 28.dp)) {
+            BasicText(stringResource(R.string.app_library).uppercase(), style = TextStyle(color = Gold, fontSize = 13.sp, letterSpacing = 2.8.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium))
+            Spacer(Modifier.height(18.dp))
             LazyVerticalGrid(
-                columns = GridCells.Fixed(6),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp)
+                columns = GridCells.Fixed(4),
+                state = gridState,
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
             ) {
                 gridItemsIndexed(apps) { i, app ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Tile(app, if (i == 0) first else null, 260.dp, 150.dp, onLaunch)
+                        Tile(app, if (i == 0) first else null, 194.dp, 109.dp, onLaunch)
                         Spacer(Modifier.height(8.dp))
                         BasicText(app.label, style = TextStyle(color = Color(0xB3FFFFFF), fontSize = 14.sp, fontFamily = Outfit), maxLines = 1)
                     }
@@ -466,13 +618,13 @@ private fun PrayerRail(d: HomeData) {
             .padding(start = 12.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // "Berikutnya" block.
+        // "Berikutnya" / "Next" block.
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(13.dp)).background(Gold), contentAlignment = Alignment.Center) {
             Image(painterResource(R.drawable.ic_prayer), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(DarkInk))
         }
         Spacer(Modifier.width(13.dp))
         Column {
-            BasicText("BERIKUTNYA",
+            BasicText(stringResource(R.string.prayer_next).uppercase(),
                 style = TextStyle(color = Gold.copy(alpha = 0.9f), fontSize = 10.sp, letterSpacing = 1.8.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium))
             Spacer(Modifier.height(2.dp))
             BasicText(d.countdown ?: "", style = TextStyle(color = Color.White, fontSize = 18.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium))
@@ -487,7 +639,7 @@ private fun PrayerRail(d: HomeData) {
                     .padding(horizontal = 11.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                BasicText(c.name.uppercase(Locale("in", "ID")),
+                BasicText(c.name.uppercase(Locale.getDefault()),
                     style = TextStyle(color = if (c.next) DarkInk.copy(alpha = 0.75f) else Color(0x66FFFFFF), fontSize = 10.sp, letterSpacing = 1.2.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium))
                 Spacer(Modifier.height(3.dp))
                 BasicText(c.time,
@@ -501,16 +653,16 @@ private fun PrayerRail(d: HomeData) {
 @Composable
 private fun Quote(d: HomeData) {
     Column(Modifier.fillMaxWidth()) {
-        BasicText("—   AYAT HARI INI",
+        BasicText("—   " + stringResource(R.string.quote_eyebrow).uppercase(),
             style = TextStyle(color = Gold.copy(alpha = 0.8f), fontSize = 11.sp, letterSpacing = 2.2.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium))
         Spacer(Modifier.height(10.dp))
         BasicText(d.quoteAr ?: "", Modifier.fillMaxWidth(),
             style = TextStyle(color = Color(0xF2FFFFFF), fontSize = 24.sp, textAlign = TextAlign.Center))
         Spacer(Modifier.height(10.dp))
-        BasicText("“" + (d.quoteId ?: "") + "”",
+        BasicText("\u201c" + (d.quoteId ?: "") + "\u201d",
             style = TextStyle(color = Color(0xD9FFFFFF), fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Light))
         Spacer(Modifier.height(8.dp))
-        BasicText((d.quoteSrc ?: "").uppercase(Locale("in", "ID")),
+        BasicText((d.quoteSrc ?: "").uppercase(Locale.getDefault()),
             style = TextStyle(color = Gold.copy(alpha = 0.6f), fontSize = 12.sp, letterSpacing = 1.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium))
     }
 }
