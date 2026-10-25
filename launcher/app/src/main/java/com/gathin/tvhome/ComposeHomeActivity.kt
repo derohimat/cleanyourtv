@@ -105,6 +105,7 @@ private class HomeData(
     val quoteAr: String?,
     val quoteId: String?,
     val quoteSrc: String?,
+    val networkLabel: String,
     val dim: Float,
     /** Milliseconds between wallpaper rotations; 0 means no timed rotation. */
     val wallpaperRotationMs: Long
@@ -246,8 +247,38 @@ class ComposeHomeActivity : ComponentActivity() {
             greeting.uppercase(Locale.getDefault()), cfg.clockZoneLabel,
             dateLine.uppercase(Locale.getDefault()),
             hijriLine?.uppercase(Locale.getDefault()), nextName, countdown, cells, ar, id, src,
-            cfg.wallpaperDim / 100f, rotationMs
+            networkLabel(), cfg.wallpaperDim / 100f, rotationMs
         )
+    }
+
+    /** A short label for the current connection, like the View launcher's network pill. */
+    private fun networkLabel(): String {
+        return try {
+            val cm = getSystemService(CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+                ?: return getString(R.string.quick_network)
+            var online = false
+            var ethernet = false
+            var wifi = false
+            for (n in cm.allNetworks) {
+                val caps = cm.getNetworkCapabilities(n) ?: continue
+                if (!caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
+                online = true
+                if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) ethernet = true
+                if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) wifi = true
+            }
+            when {
+                !online -> getString(R.string.offline)
+                ethernet -> getString(R.string.ethernet)
+                wifi -> {
+                    val wm = applicationContext.getSystemService(WIFI_SERVICE) as? android.net.wifi.WifiManager
+                    val ssid = wm?.connectionInfo?.ssid?.trim('"')
+                    if (!ssid.isNullOrEmpty() && ssid != "<unknown ssid>") ssid else getString(R.string.wifi)
+                }
+                else -> getString(R.string.quick_network)
+            }
+        } catch (e: Throwable) {
+            getString(R.string.quick_network)
+        }
     }
 
     /**
@@ -438,10 +469,10 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun TopButtons(onSystem: (String) -> Unit, onPanel: () -> Unit) {
+private fun TopButtons(onSystem: (String) -> Unit, onPanel: () -> Unit, networkLabel: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Pill(stringResource(R.string.inputs).uppercase()) { onSystem(Settings.ACTION_SETTINGS) }
-        Pill(stringResource(R.string.quick_network).uppercase()) { onSystem(Settings.ACTION_WIFI_SETTINGS) }
+        Pill(networkLabel.uppercase()) { onSystem(Settings.ACTION_WIFI_SETTINGS) }
         Pill(stringResource(R.string.settings).uppercase()) { onPanel() }
     }
 }
@@ -585,7 +616,7 @@ private fun AppGrid(
 private fun Header(d: HomeData, onSystem: (String) -> Unit, onPanel: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
         HeaderClock(d)
-        TopButtons(onSystem, onPanel)
+        TopButtons(onSystem, onPanel, d.networkLabel)
     }
 }
 
