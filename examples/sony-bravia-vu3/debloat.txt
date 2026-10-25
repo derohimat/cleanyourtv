@@ -37,7 +37,9 @@ com.android.ondevicepersonalization.services # on-device ad personalisation
 com.amazon.amazonvideo.livingroom        # Prime Video
 in.startv.hotstar.dplus.tv               # Disney+ Hotstar
 com.maxstream.tv                         # MAXstream (Telkomsel)
-com.bstar.intl.tv                        # Bstation
+com.bstar.intl.tv                        # Bstation — NOTE: re-enabled manually after the debloat was applied;
+                                         # cause unconfirmed. Left enabled for now; re-disable with
+                                         # `adb shell pm disable-user --user 0 com.bstar.intl.tv` if desired.
 com.apple.atve.androidtv.appletv         # Apple TV (preloaded in /data)
 com.google.android.play.games            # Play Games
 com.google.android.marvin.talkback       # screen reader, off by choice
