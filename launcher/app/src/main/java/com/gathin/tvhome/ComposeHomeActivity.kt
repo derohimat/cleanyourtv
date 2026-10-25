@@ -105,7 +105,6 @@ private class HomeData(
     val quoteAr: String?,
     val quoteId: String?,
     val quoteSrc: String?,
-    val wallpaper: androidx.compose.ui.graphics.ImageBitmap?,
     val dim: Float,
     /** Milliseconds between wallpaper rotations; 0 means no timed rotation. */
     val wallpaperRotationMs: Long
@@ -123,9 +122,12 @@ class ComposeHomeActivity : ComponentActivity() {
     private val dataState = androidx.compose.runtime.mutableStateOf<HomeData?>(null)
     private val gridOpen = androidx.compose.runtime.mutableStateOf(false)
 
-    // WallpaperRotation state: last picked filename and a stable Random instance.
+    // WallpaperRotation state: last picked filename, when it last changed, and a stable Random instance.
     private var wallpaperPrevious: String? = null
+    private var wallpaperFile: File? = null
+    private var wallpaperChangedAt: Long = 0L
     private val wallpaperRandom = Random()
+    private val wallpaperState = androidx.compose.runtime.mutableStateOf<ImageBitmap?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -134,14 +136,15 @@ class ComposeHomeActivity : ComponentActivity() {
         dock = d
         grid = g
         setContent {
-            dataState.value?.let { data ->
+            val data = dataState.value
+            if (data != null) {
                 HomeScreen(
-                    data, dock, grid, gridOpen,
+                    data, wallpaperState.value, dock, grid, gridOpen,
                     onLaunch = { intent -> runCatching { startActivity(intent) } },
                     onSystem = { action -> runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
                     onPanel = { runCatching { startActivity(Intent(this, QuickSettingsActivity::class.java)) } },
-                    onTick = { dataState.value = readHome(Config.load(this), advanceQuote = false, advanceWallpaper = false) },
-                    onWallpaperRotate = { dataState.value = readHome(Config.load(this), advanceQuote = false, advanceWallpaper = true) }
+                    onTick = { dataState.value = readHome(Config.load(this), advanceQuote = false) },
+                    onWallpaperRotate = { updateWallpaper(Config.load(this), force = true) }
                 )
             }
         }
@@ -149,9 +152,12 @@ class ComposeHomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Returning to Home: close the grid, reload the wallpaper, recompute prayer and advance the quote.
+        // Returning to Home: close the grid, recompute prayer and advance the quote. Refresh the
+        // wallpaper only if its rotation interval has elapsed (decoded off the main thread).
         gridOpen.value = false
-        dataState.value = readHome(Config.load(this), advanceQuote = true, advanceWallpaper = true)
+        val cfg = Config.load(this)
+        dataState.value = readHome(cfg, advanceQuote = true)
+        updateWallpaper(cfg, force = false)
     }
 
     /**
@@ -164,7 +170,7 @@ class ComposeHomeActivity : ComponentActivity() {
         // Focus restoration is handled by the LaunchedEffect(gridOpen.value) in HomeScreen.
     }
 
-    private fun readHome(cfg: Config, advanceQuote: Boolean, advanceWallpaper: Boolean): HomeData {
+    private fun readHome(cfg: Config, advanceQuote: Boolean): HomeData {
         val now = Calendar.getInstance()
 
         // Greeting (time-of-day, or the configured fixed greeting, plus an optional name).
@@ -233,24 +239,6 @@ class ComposeHomeActivity : ComponentActivity() {
             }
         }
 
-        // Wallpaper: use WallpaperRotation.pick() for proper random no-repeat selection.
-        // Only rotate (pick a new image) when advanceWallpaper is true; on minute ticks keep the
-        // current image so the screen does not flash.
-        if (advanceWallpaper) {
-            val files = cfg.wallpapers
-            if (cfg.wallpaperEnabled && files.isNotEmpty()) {
-                val picked = WallpaperRotation.pick(files, wallpaperPrevious, wallpaperRandom)
-                if (picked != null) {
-                    wallpaperPrevious = picked.name
-                    wallpaper = decodeScaled(picked)
-                } else {
-                    wallpaper = null
-                }
-            } else {
-                wallpaper = null
-            }
-        }
-
         val rotationMs = if (cfg.wallpaperRotationMinutes > 0)
             cfg.wallpaperRotationMinutes * 60_000L else 0L
 
@@ -258,12 +246,36 @@ class ComposeHomeActivity : ComponentActivity() {
             greeting.uppercase(Locale.getDefault()), cfg.clockZoneLabel,
             dateLine.uppercase(Locale.getDefault()),
             hijriLine?.uppercase(Locale.getDefault()), nextName, countdown, cells, ar, id, src,
-            wallpaper, cfg.wallpaperDim / 100f, rotationMs
+            cfg.wallpaperDim / 100f, rotationMs
         )
     }
 
-    // Held across readHome calls so the wallpaper persists on minute ticks.
-    private var wallpaper: ImageBitmap? = null
+    /**
+     * Refresh the rotating wallpaper. Picks a new image only when forced (the rotation timer), on first
+     * show, or when the rotation interval has elapsed since the last change — not on every return to Home
+     * — and decodes it on a background thread so Home never blocks on a ~600 KB JPEG.
+     */
+    private fun updateWallpaper(cfg: Config, force: Boolean) {
+        val files = cfg.wallpapers
+        if (!cfg.wallpaperEnabled || files.isEmpty()) {
+            wallpaperFile = null
+            wallpaperState.value = null
+            return
+        }
+        val intervalMs = if (cfg.wallpaperRotationMinutes > 0) cfg.wallpaperRotationMinutes * 60_000L else 0L
+        val now = System.currentTimeMillis()
+        val firstTime = wallpaperFile == null || wallpaperState.value == null
+        val due = intervalMs > 0 && now - wallpaperChangedAt >= intervalMs
+        if (!firstTime && !force && !due) return
+        val picked = WallpaperRotation.pick(files, wallpaperPrevious, wallpaperRandom) ?: return
+        wallpaperPrevious = picked.name
+        wallpaperFile = picked
+        wallpaperChangedAt = now
+        Thread {
+            val bmp = decodeScaled(picked)
+            runOnUiThread { wallpaperState.value = bmp }
+        }.start()
+    }
 
     private fun decodeScaled(file: File): ImageBitmap? {
         return try {
@@ -346,6 +358,7 @@ class ComposeHomeActivity : ComponentActivity() {
 @Composable
 private fun HomeScreen(
     d: HomeData,
+    wallpaper: ImageBitmap?,
     dock: List<AppEntry>,
     grid: List<AppEntry>,
     gridOpen: androidx.compose.runtime.MutableState<Boolean>,
@@ -386,8 +399,8 @@ private fun HomeScreen(
     val gridScrollState = rememberLazyGridState()
 
     Box(Modifier.fillMaxSize().background(Color(0xFF05070D))) {
-        if (d.wallpaper != null) {
-            Image(d.wallpaper, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        if (wallpaper != null) {
+            Image(wallpaper, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         }
         // Legibility scrim: dark at top and bottom.
         Box(
