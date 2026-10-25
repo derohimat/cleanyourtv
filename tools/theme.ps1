@@ -25,7 +25,7 @@ $revision = [guid]::NewGuid().ToString('N')
 # put the list back if it had ours. Writing the same list back is not enough: the force-stop also turns
 # accessibility_enabled off, and the service only binds again once the list changes. So restart first, then
 # clear the list, write it back and switch accessibility on again.
-$restart = "a=`$(settings get secure enabled_accessibility_services); am force-stop $pkg; am start -n $pkg/.MainActivity >/dev/null; case `"`$a`" in *$pkg*) sleep 1; settings put secure enabled_accessibility_services ''; settings put secure enabled_accessibility_services `"`$a`"; settings put secure accessibility_enabled 1 ;; esac"
+$restart = "a=`$(settings get secure enabled_accessibility_services); am force-stop $pkg; am start -n $pkg/.ComposeHomeActivity >/dev/null; case `"`$a`" in *$pkg*) sleep 1; settings put secure enabled_accessibility_services ''; settings put secure enabled_accessibility_services `"`$a`"; settings put secure accessibility_enabled 1 ;; esac"
 
 if ($Reset) {
     & $py -I tv.py "mkdir -p $dir; rm -f $dir/config.json $dir/wallpaper.jpg $dir/quotes.json; printf '%s' '$revision' > $dir/theme_revision; $restart; echo reset"
