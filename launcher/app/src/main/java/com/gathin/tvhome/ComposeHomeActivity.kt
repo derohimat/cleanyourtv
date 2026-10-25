@@ -509,7 +509,7 @@ private fun Dock(
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(22.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 14.dp)
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)
     ) {
         itemsIndexed(apps) { i, app ->
             Tile(
@@ -544,8 +544,7 @@ private fun Tile(
             .zIndex(if (focused) 2f else 1f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width = w, height = h)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF0B0B10))
+            .background(Color(0xFF0B0B10), RoundedCornerShape(18.dp))
             .then(if (focused) Modifier.border(3.dp, Gold, RoundedCornerShape(18.dp)) else Modifier)
             .then(if (fr != null) Modifier.focusRequester(fr) else Modifier)
             .onFocusChanged {
@@ -563,7 +562,7 @@ private fun Tile(
     ) {
         if (app.image != null) {
             if (app.isBanner) {
-                Image(app.image, app.label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Image(app.image, app.label, Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)), contentScale = ContentScale.Crop)
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Image(app.image, app.label, Modifier.size(52.dp), contentScale = ContentScale.Fit)
@@ -598,7 +597,7 @@ private fun AppGrid(
                 state = gridState,
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
-                contentPadding = PaddingValues(vertical = 12.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
             ) {
                 gridItemsIndexed(apps) { i, app ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
